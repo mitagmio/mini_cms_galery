@@ -19,12 +19,14 @@ import (
 )
 
 type Config struct {
-	OutDir        string
-	UploadDir     string
-	ThemeSrc      string // FRONT_THEME_SRC or path to front/
-	PreviewBase   string // URL prefix for preview, e.g. /preview
-	PathPrefix    string // "" for GHP publish; "/preview" for admin draft (nav/logo links)
-	CanonicalBase string
+	OutDir           string
+	UploadDir        string
+	ThemeSrc         string // FRONT_THEME_SRC or path to front/
+	PreviewBase      string // URL prefix for preview, e.g. /preview
+	PathPrefix       string // "" for GHP publish; "/preview" for admin draft (nav/logo links)
+	CanonicalBase    string
+	PublicAPIURL     string
+	TurnstileSiteKey string
 }
 
 type Generator struct {
@@ -499,28 +501,21 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			emailL, _ := data["email_label"].(string)
 			msgL, _ := data["message_label"].(string)
 			subL, _ := data["submit_label"].(string)
-			if nameL == "" {
-				nameL = "Name"
+			success, _ := data["success_message"].(string)
+			formID := "contact_form"
+			if b.ID != "" {
+				formID = "contact_form_" + b.ID
 			}
-			if emailL == "" {
-				emailL = "Email"
-			}
-			if msgL == "" {
-				msgL = "Message"
-			}
-			if subL == "" {
-				subL = "Send Message"
-			}
-			html = fmt.Sprintf(`
-<div class="_4ORMAT_content_page_row _4ormat_sort_item">
-<form class="contact_form" method="post" action="#" onsubmit="return false;">
-<label>%s<input type="text" name="name" required/></label>
-<label>%s<input type="email" name="email" required/></label>
-<label>%s<textarea name="message" required></textarea></label>
-<button type="submit">%s</button>
-</form>
-</div>`, template.HTMLEscapeString(nameL), template.HTMLEscapeString(emailL),
-				template.HTMLEscapeString(msgL), template.HTMLEscapeString(subL))
+			html = RenderContactForm(ContactFormInput{
+				APIURL:           g.Cfg.PublicAPIURL,
+				FormID:           formID,
+				NameLabel:        nameL,
+				EmailLabel:       emailL,
+				MessageLabel:     msgL,
+				SubmitLabel:      subL,
+				SuccessMessage:   success,
+				TurnstileSiteKey: g.Cfg.TurnstileSiteKey,
+			})
 
 		default:
 			html = fmt.Sprintf(`<!-- unknown block type %s -->`, template.HTMLEscapeString(b.Type))

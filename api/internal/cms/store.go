@@ -15,25 +15,33 @@ func (s *Store) GetSettings() (SiteSettings, error) {
 	var st SiteSettings
 	err := s.db.QueryRow(`
 SELECT site_name, logo_html, description, og_image, instagram_url, behance_url,
-       linkedin_url, copyright, canonical_base, updated_at
+       linkedin_url, copyright, canonical_base, contact_email, updated_at
 FROM site_settings WHERE id = 1`).Scan(
 		&st.SiteName, &st.LogoHTML, &st.Description, &st.OGImage,
 		&st.InstagramURL, &st.BehanceURL, &st.LinkedInURL, &st.Copyright,
-		&st.CanonicalBase, &st.UpdatedAt,
+		&st.CanonicalBase, &st.ContactEmail, &st.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SiteSettings{}, nil
 	}
-	return st, err
+	if err != nil {
+		return SiteSettings{}, err
+	}
+	st.MailtoAddress = st.ContactEmail
+	return st, nil
 }
 
 func (s *Store) PutSettings(st SiteSettings) (SiteSettings, error) {
+	st.ContactEmail = strings.TrimSpace(st.ContactEmail)
+	if st.ContactEmail == "" {
+		st.ContactEmail = strings.TrimSpace(st.MailtoAddress)
+	}
 	st.UpdatedAt = Now()
 	_, err := s.db.Exec(`
 INSERT INTO site_settings (
   id, site_name, logo_html, description, og_image, instagram_url, behance_url,
-  linkedin_url, copyright, canonical_base, updated_at
-) VALUES (1,?,?,?,?,?,?,?,?,?,?)
+  linkedin_url, copyright, canonical_base, contact_email, updated_at
+) VALUES (1,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET
   site_name=excluded.site_name,
   logo_html=excluded.logo_html,
@@ -44,13 +52,77 @@ ON CONFLICT(id) DO UPDATE SET
   linkedin_url=excluded.linkedin_url,
   copyright=excluded.copyright,
   canonical_base=excluded.canonical_base,
+  contact_email=excluded.contact_email,
   updated_at=excluded.updated_at
 `, st.SiteName, st.LogoHTML, st.Description, st.OGImage, st.InstagramURL,
-		st.BehanceURL, st.LinkedInURL, st.Copyright, st.CanonicalBase, st.UpdatedAt)
+		st.BehanceURL, st.LinkedInURL, st.Copyright, st.CanonicalBase, st.ContactEmail, st.UpdatedAt)
 	if err != nil {
 		return SiteSettings{}, err
 	}
 	return s.GetSettings()
+}
+
+// ContactRecipient is the inbox for public contact-form mail: settings first,
+// then a mailto saved on a contact_form block (admin page inspector).
+func (s *Store) ContactRecipient() (string, error) {
+	st, err := s.GetSettings()
+	if err != nil {
+		return "", err
+	}
+	if e := strings.TrimSpace(st.ContactEmail); e != "" {
+		return e, nil
+	}
+	return s.firstContactMailto()
+}
+
+// BackfillContactEmail copies a contact_form block mailto into settings when
+// contact_email is still empty (one-time after adding the column).
+func (s *Store) BackfillContactEmail() error {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM site_settings WHERE id = 1`).Scan(&n)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return nil
+	}
+	st, err := s.GetSettings()
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(st.ContactEmail) != "" {
+		return nil
+	}
+	mailto, err := s.firstContactMailto()
+	if err != nil || mailto == "" {
+		return err
+	}
+	_, err = s.db.Exec(`UPDATE site_settings SET contact_email = ?, updated_at = ? WHERE id = 1`, mailto, Now())
+	return err
+}
+
+func (s *Store) firstContactMailto() (string, error) {
+	rows, err := s.db.Query(`SELECT data_json FROM blocks WHERE type = ?`, BlockContactForm)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var raw string
+		if err := rows.Scan(&raw); err != nil {
+			return "", err
+		}
+		var data struct {
+			Mailto string `json:"mailto"`
+		}
+		if err := json.Unmarshal([]byte(raw), &data); err != nil {
+			continue
+		}
+		if e := strings.TrimSpace(data.Mailto); e != "" {
+			return e, nil
+		}
+	}
+	return "", rows.Err()
 }
 
 func (s *Store) ListPages() ([]Page, error) {

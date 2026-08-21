@@ -14,6 +14,7 @@ const EMPTY = {
   robots: 'index,follow',
   favicon_media_id: null,
   og_image_media_id: null,
+  contact_email: '',
   social: {
     instagram: '',
     behance: '',
@@ -39,6 +40,7 @@ export default function Settings() {
           setSettings({
             ...EMPTY,
             ...raw,
+            contact_email: raw.contact_email || raw.mailto_address || '',
             social: { ...EMPTY.social, ...(raw.social || {}) },
           })
         }
@@ -91,7 +93,7 @@ export default function Settings() {
       <header className="page-head">
         <div>
           <h1>Settings</h1>
-          <p className="muted">SEO defaults, favicon, site name, social</p>
+          <p className="muted">SEO defaults, favicon, site name, social, contact email</p>
         </div>
       </header>
 
@@ -181,6 +183,22 @@ export default function Settings() {
             onChange={(e) => patchSocial('linkedin', e.target.value)}
           />
         </label>
+
+        <h2>Contact</h2>
+        <label>
+          Contact email
+          <input
+            type="email"
+            value={settings.contact_email || ''}
+            onChange={(e) => patch('contact_email', e.target.value)}
+            placeholder="messages from the public contact form"
+            autoComplete="email"
+          />
+        </label>
+        <p className="muted">
+          Public contact form on sheyanova.art sends messages here. Requires SMTP on the API
+          (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM).
+        </p>
 
         <h2>Menu</h2>
         <p className="muted">

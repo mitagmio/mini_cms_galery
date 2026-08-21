@@ -77,7 +77,8 @@ func settingsForAdmin(st SiteSettings) map[string]any {
 		"linkedin_url":         st.LinkedInURL,
 		"copyright":            st.Copyright,
 		"canonical_base":       st.CanonicalBase,
-		"mailto_address":       st.MailtoAddress,
+		"mailto_address":       st.ContactEmail,
+		"contact_email":        st.ContactEmail,
 		"updated_at":           st.UpdatedAt,
 		"social": map[string]string{
 			"instagram": st.InstagramURL,
@@ -113,6 +114,9 @@ func parseSettingsPayload(raw []byte) (SiteSettings, error) {
 	}
 	if st.OGImageMediaID != "" {
 		st.OGImage = st.OGImageMediaID
+	}
+	if strings.TrimSpace(st.ContactEmail) == "" {
+		st.ContactEmail = strings.TrimSpace(st.MailtoAddress)
 	}
 	return st, nil
 }

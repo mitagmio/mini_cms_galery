@@ -10,6 +10,7 @@ import (
 
 	"sheyanova.art/api/internal/auth"
 	"sheyanova.art/api/internal/cms"
+	"sheyanova.art/api/internal/contact"
 	"sheyanova.art/api/internal/generate"
 	"sheyanova.art/api/internal/httpx"
 	"sheyanova.art/api/internal/importfront"
@@ -82,12 +83,14 @@ func main() {
 	}
 
 	gen, err := generate.New(store, generate.Config{
-		OutDir:        cfg.PreviewDir,
-		UploadDir:     cfg.UploadDir,
-		ThemeSrc:      themeSrc,
-		PreviewBase:   cfg.PreviewBaseURL,
-		PathPrefix:    strings.TrimRight(cfg.PreviewBaseURL, "/"),
-		CanonicalBase: cfg.CanonicalBase,
+		OutDir:           cfg.PreviewDir,
+		UploadDir:        cfg.UploadDir,
+		ThemeSrc:         themeSrc,
+		PreviewBase:      cfg.PreviewBaseURL,
+		PathPrefix:       strings.TrimRight(cfg.PreviewBaseURL, "/"),
+		CanonicalBase:    cfg.CanonicalBase,
+		PublicAPIURL:     cfg.PublicAPIURL,
+		TurnstileSiteKey: cfg.TurnstileSiteKey,
 	})
 	if err != nil {
 		log.Fatalf("generator: %v", err)
@@ -134,6 +137,18 @@ func main() {
 	mux.Handle("/api/admin/templates", guard.Middleware(http.HandlerFunc(cmsH.Templates)))
 	mux.Handle("/api/admin/templates/", guard.Middleware(http.HandlerFunc(cmsH.TemplateByID)))
 
+	smtpCfg := contact.SMTPFromEnv()
+	contactH := contact.NewHandler(store, cfg.CORSOrigins, contact.ChainSender{SMTP: smtpCfg}, cfg.TurnstileSecret)
+	mux.HandleFunc("/api/contact", contactH.Submit)
+	if smtpCfg.Configured() {
+		log.Printf("contact: SMTP host=%s port=%s from=%s", smtpCfg.Host, smtpCfg.Port, smtpCfg.From)
+	} else {
+		log.Printf("contact: SMTP_HOST unset — set SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM to deliver mail")
+	}
+	if cfg.TurnstileSiteKey != "" && cfg.TurnstileSecret == "" {
+		log.Printf("contact: TURNSTILE_SITE_KEY set without TURNSTILE_SECRET_KEY")
+	}
+
 	mux.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir(cfg.UploadDir))))
 	mux.Handle("/preview/", http.StripPrefix("/preview/", http.FileServer(http.Dir(cfg.PreviewDir))))
 
@@ -147,18 +162,21 @@ func main() {
 }
 
 type config struct {
-	ListenAddr     string
-	DataDir        string
-	UploadDir      string
-	PreviewDir     string
-	PreviewBaseURL string
-	FrontDir       string
-	FrontThemeSrc  string
-	ImportFront    string
-	CanonicalBase  string
-	CORSOrigins    []string
-	AdminToken     string
-	MaxUploadMB    int64
+	ListenAddr       string
+	DataDir          string
+	UploadDir        string
+	PreviewDir       string
+	PreviewBaseURL   string
+	FrontDir         string
+	FrontThemeSrc    string
+	ImportFront      string
+	CanonicalBase    string
+	PublicAPIURL     string
+	CORSOrigins      []string
+	AdminToken       string
+	MaxUploadMB      int64
+	TurnstileSiteKey string
+	TurnstileSecret  string
 }
 
 func loadConfig() config {
@@ -179,18 +197,21 @@ func loadConfig() config {
 		theme = front
 	}
 	return config{
-		ListenAddr:     envOr("LISTEN_ADDR", ":8080"),
-		DataDir:        data,
-		UploadDir:      upload,
-		PreviewDir:     preview,
-		PreviewBaseURL: envOr("PREVIEW_BASE_URL", "/preview"),
-		FrontDir:       front,
-		FrontThemeSrc:  theme,
-		ImportFront:    envOr("IMPORT_FRONT", ""),
-		CanonicalBase:  envOr("CANONICAL_BASE", "https://sheyanova.art"),
-		CORSOrigins:    origins,
-		AdminToken:     loadAdminToken(),
-		MaxUploadMB:    maxMB,
+		ListenAddr:       envOr("LISTEN_ADDR", ":8080"),
+		DataDir:          data,
+		UploadDir:        upload,
+		PreviewDir:       preview,
+		PreviewBaseURL:   envOr("PREVIEW_BASE_URL", "/preview"),
+		FrontDir:         front,
+		FrontThemeSrc:    theme,
+		ImportFront:      envOr("IMPORT_FRONT", ""),
+		CanonicalBase:    envOr("CANONICAL_BASE", "https://sheyanova.art"),
+		PublicAPIURL:     strings.TrimRight(envOr("PUBLIC_API_URL", "https://api.sheyanova.art"), "/"),
+		CORSOrigins:      origins,
+		AdminToken:       loadAdminToken(),
+		MaxUploadMB:      maxMB,
+		TurnstileSiteKey: os.Getenv("TURNSTILE_SITE_KEY"),
+		TurnstileSecret:  os.Getenv("TURNSTILE_SECRET_KEY"),
 	}
 }
 

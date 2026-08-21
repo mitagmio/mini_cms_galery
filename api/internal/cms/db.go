@@ -43,9 +43,9 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-func (s *Store) DB() *sql.DB         { return s.db }
-func (s *Store) DataDir() string     { return s.dataDir }
-func (s *Store) UploadDir() string   { return s.uploadDir }
+func (s *Store) DB() *sql.DB       { return s.db }
+func (s *Store) DataDir() string   { return s.dataDir }
+func (s *Store) UploadDir() string { return s.uploadDir }
 
 func (s *Store) migrate() error {
 	schema := `
@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS site_settings (
   linkedin_url TEXT NOT NULL DEFAULT '',
   copyright TEXT NOT NULL DEFAULT '',
   canonical_base TEXT NOT NULL DEFAULT '',
+  contact_email TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL DEFAULT ''
 );
 
@@ -141,5 +142,44 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)
 	}
+	if err := s.ensureColumn("site_settings", "contact_email", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate contact_email: %w", err)
+	}
+	if err := s.BackfillContactEmail(); err != nil {
+		return fmt.Errorf("migrate backfill contact_email: %w", err)
+	}
 	return nil
+}
+
+func (s *Store) ensureColumn(table, col, decl string) error {
+	ok, err := s.hasColumn(table, col)
+	if err != nil {
+		return err
+	}
+	if ok {
+		return nil
+	}
+	_, err = s.db.Exec(fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, col, decl))
+	return err
+}
+
+func (s *Store) hasColumn(table, col string) (bool, error) {
+	rows, err := s.db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var cid int
+		var name, ctype string
+		var notnull, pk int
+		var dflt any
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dflt, &pk); err != nil {
+			return false, err
+		}
+		if name == col {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }

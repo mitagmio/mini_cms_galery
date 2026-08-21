@@ -51,7 +51,7 @@ export const BLOCK_PALETTE = [
   {
     type: 'contact_form',
     label: 'Contact form',
-    hint: 'Static contact form shell',
+    hint: 'Sends to Settings → Contact email',
     defaultData: () => ({
       heading: 'Contact',
       mailto: '',

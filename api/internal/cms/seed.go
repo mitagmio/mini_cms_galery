@@ -23,6 +23,9 @@ func (s *Store) BootSeed() error {
 	if err := s.EnsureSystemTemplates(); err != nil {
 		return err
 	}
+	if err := s.BackfillContactEmail(); err != nil {
+		log.Printf("cms: contact_email backfill: %v", err)
+	}
 	nMedia, err := s.CountMedia()
 	if err != nil {
 		return err
@@ -54,12 +57,12 @@ func (s *Store) seedDefaults() error {
 	}
 
 	type seedPage struct {
-		Slug       string
-		Title      string
-		Theme      string
-		Homepage   bool
-		SortOrder  int
-		Blocks     []Block
+		Slug      string
+		Title     string
+		Theme     string
+		Homepage  bool
+		SortOrder int
+		Blocks    []Block
 	}
 	pages := []seedPage{
 		{Slug: "before-after", Title: "BEFORE | AFTER", Theme: ThemeBAContent, Homepage: true, SortOrder: 0},

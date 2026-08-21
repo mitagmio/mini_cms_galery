@@ -697,9 +697,15 @@ function BlockInspector({ block, mediaIndex, onChange, onPick, onSwap, onDelete 
           <input value={d.heading || ''} onChange={(e) => onChange({ heading: e.target.value })} />
         </label>
         <label>
-          Mailto
-          <input value={d.mailto || ''} onChange={(e) => onChange({ mailto: e.target.value })} />
+          Mailto (fallback)
+          <input
+            type="email"
+            value={d.mailto || ''}
+            onChange={(e) => onChange({ mailto: e.target.value })}
+            placeholder="only if Settings → Contact email is empty"
+          />
         </label>
+        <p className="muted">Messages go to Settings → Contact email. This field is a fallback only.</p>
         <label>
           Success message
           <input

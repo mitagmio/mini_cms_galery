@@ -29,6 +29,7 @@ type SiteSettings struct {
 	FaviconMediaID     string `json:"favicon_media_id,omitempty"`
 	OGImageMediaID     string `json:"og_image_media_id,omitempty"`
 	MailtoAddress      string `json:"mailto_address,omitempty"`
+	ContactEmail       string `json:"contact_email,omitempty"`
 	UpdatedAt          string `json:"updated_at,omitempty"`
 	// Social is admin-friendly nested shape; filled on marshal via SettingsDTO.
 	Social map[string]string `json:"social,omitempty"`
