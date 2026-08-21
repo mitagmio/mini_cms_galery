@@ -277,6 +277,12 @@ func (h *Handler) PageByID(w http.ResponseWriter, r *http.Request) {
 			if v, ok := seo["description"].(string); ok && patch["meta_description"] == nil {
 				patch["meta_description"] = v
 			}
+			// Meta title overrides the page <title> when provided (same column for now).
+			if v, ok := seo["meta_title"].(string); ok && v != "" {
+				if _, hasTitle := patch["title"]; !hasTitle {
+					patch["title"] = v
+				}
+			}
 			if v, ok := seo["og_image"].(string); ok {
 				patch["og_image"] = v
 			}

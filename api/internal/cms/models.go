@@ -35,20 +35,29 @@ type SiteSettings struct {
 }
 
 type Page struct {
-	ID              string  `json:"id"`
-	Slug            string  `json:"slug"`
-	Title           string  `json:"title"`
-	Theme           string  `json:"theme"`
-	Template        string  `json:"template,omitempty"` // alias of theme for admin
-	Status          string  `json:"status"`
-	SortOrder       int     `json:"sort_order"`
-	NavLabel        string  `json:"nav_label,omitempty"`
-	MetaDescription string  `json:"meta_description"`
-	OGImage         string  `json:"og_image"`
-	IsHomepage      bool    `json:"is_homepage"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
-	Blocks          []Block `json:"blocks,omitempty"`
+	ID              string   `json:"id"`
+	Slug            string   `json:"slug"`
+	Title           string   `json:"title"`
+	Theme           string   `json:"theme"`
+	Template        string   `json:"template,omitempty"` // alias of theme for admin
+	Status          string   `json:"status"`
+	SortOrder       int      `json:"sort_order"`
+	NavLabel        string   `json:"nav_label,omitempty"`
+	MetaDescription string   `json:"meta_description"`
+	OGImage         string   `json:"og_image"`
+	IsHomepage      bool     `json:"is_homepage"`
+	CreatedAt       string   `json:"created_at"`
+	UpdatedAt       string   `json:"updated_at"`
+	Blocks          []Block  `json:"blocks,omitempty"`
+	SEO             *PageSEO `json:"seo,omitempty"`
+}
+
+// PageSEO is the admin SEO inspector shape (nested under page.seo).
+type PageSEO struct {
+	MetaTitle       string `json:"meta_title,omitempty"`
+	MetaDescription string `json:"meta_description,omitempty"`
+	CanonicalPath   string `json:"canonical_path,omitempty"`
+	OGImageMediaID  string `json:"og_image_media_id,omitempty"`
 }
 
 // NormalizeAliases copies theme↔template so either name works.
@@ -62,6 +71,21 @@ func (p *Page) NormalizeAliases() {
 	if p.NavLabel == "" {
 		p.NavLabel = p.Title
 	}
+	// Always expose nested seo for admin (values live in flat columns today).
+	seo := p.SEO
+	if seo == nil {
+		seo = &PageSEO{}
+	}
+	if seo.MetaTitle == "" {
+		seo.MetaTitle = p.Title
+	}
+	if seo.MetaDescription == "" {
+		seo.MetaDescription = p.MetaDescription
+	}
+	if seo.OGImageMediaID == "" && p.OGImage != "" {
+		seo.OGImageMediaID = p.OGImage
+	}
+	p.SEO = seo
 }
 
 type Block struct {

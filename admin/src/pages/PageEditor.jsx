@@ -49,7 +49,12 @@ export default function PageEditor() {
           template: 'ba_content',
           is_homepage: false,
           ...p,
-          seo: { ...(p.seo || {}) },
+          seo: {
+            meta_title: p.seo?.meta_title || p.title || '',
+            meta_description: p.seo?.meta_description || p.meta_description || '',
+            canonical_path: p.seo?.canonical_path || '',
+            og_image_media_id: p.seo?.og_image_media_id || p.og_image || '',
+          },
         })
         const bl = normalizeBlocks(bRes.blocks || bRes.items || p.blocks || [])
         setBlocks(bl)
@@ -108,7 +113,7 @@ export default function PageEditor() {
     if (!page) return
     setSaving(true)
     try {
-      await admin.pages.patch(id, {
+      const patched = await admin.pages.patch(id, {
         title: page.title,
         slug: page.slug,
         template: page.template,
@@ -117,6 +122,25 @@ export default function PageEditor() {
         nav_label: page.nav_label || page.title,
         status: page.status || 'draft',
       })
+      const p = patched.page || patched
+      if (p && typeof p === 'object') {
+        setPage((prev) =>
+          prev
+            ? {
+                ...prev,
+                ...p,
+                seo: {
+                  meta_title: p.seo?.meta_title || p.title || prev.seo?.meta_title || '',
+                  meta_description:
+                    p.seo?.meta_description || p.meta_description || prev.seo?.meta_description || '',
+                  canonical_path: p.seo?.canonical_path || prev.seo?.canonical_path || '',
+                  og_image_media_id:
+                    p.seo?.og_image_media_id || p.og_image || prev.seo?.og_image_media_id || '',
+                },
+              }
+            : prev,
+        )
+      }
       const payload = blocks.map((b, i) => ({
         id: String(b.id).startsWith('local-') ? undefined : b.id,
         type: b.type,
