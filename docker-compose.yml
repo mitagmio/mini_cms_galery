@@ -1,0 +1,51 @@
+services:
+  sheyanova_api:
+    build: ./api
+    container_name: sheyanova_api
+    env_file:
+      - ./.envs/.env.api
+    volumes:
+      - ./.docker-volumes/api-data:/data
+      - ./.docker-volumes/api-uploads:/data/uploads
+      - ./.docker-volumes/api-preview:/data/preview
+      # Generator source/output for static site (publish writes here)
+      - ./front:/front
+      # Optional GitHub Pages worktree / clone for git push
+      - ./.docker-volumes/api-ghp:/data/ghp
+      # Optional: mount deploy key if using GHP_SSH_KEY_PATH (uncomment)
+      # - ./.docker-volumes/api-ghp-ssh:/data/ghp-ssh:ro
+    expose:
+      - "8080"
+    restart: unless-stopped
+    networks:
+      - shared-web
+
+  sheyanova_admin:
+    build: ./admin
+    container_name: sheyanova_admin
+    env_file:
+      - ./.envs/.env.admin
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - shared-web
+
+  # API + admin + preview: api.sheyanova.art (public site is NOT on this host)
+  sheyanova_nginx:
+    build: ./nginx-app
+    container_name: sheyanova_nginx
+    env_file:
+      - ./.envs/.env.web
+    depends_on:
+      - sheyanova_api
+      - sheyanova_admin
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - shared-web
+
+networks:
+  shared-web:
+    external: true

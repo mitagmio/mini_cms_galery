@@ -1,0 +1,25 @@
+# Secrets / local env (keep examples)
+.envs/.env.api
+.envs/.env.publish
+
+# Dependencies & build
+node_modules/
+admin/node_modules/
+admin/dist/
+**/node_modules/
+
+# Runtime data
+.docker-volumes/
+api/data/
+*.log
+.DS_Store
+
+# Public static site lives in mitagmio/site_sheyanova — keep only empty placeholder here
+front/*
+!front/.gitkeep
+
+# Local mirror / template dump (not part of CMS source)
+front-teamplate/
+
+# Nested git metadata if present under front
+front/.git/

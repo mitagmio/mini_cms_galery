@@ -1,0 +1,41 @@
+{{define "text_content"}}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width" name="viewport"/>
+<title>{{.Page.Title}} - {{.Settings.SiteName}}</title>
+<meta name="description" content="{{.MetaDescription}}"/>
+<meta content="noai, noimageai" name="robots"/>
+<link rel="canonical" href="{{.CanonicalURL}}"/>
+<link href="/static/theme_api/v1/hosted_fonts-58e499298cb6db37c90c2bd6bd2ad287c8423ad12d9c2cc346a2af9afc8b7fd4.css" media="screen" rel="stylesheet"/>
+<link href="/static/theme_api/vendor/webtype_fonts.min-a27384810945198dd373502796bfbada62cc8409c49831a8778ac894e78f7749.css" media="screen" rel="stylesheet"/>
+<link href="/assets/theme/stylesheet.css?v=3" media="screen" rel="stylesheet"/>
+<link href="/static/theme_api/v1/960_simple-80ab8eb2695abe415bd536608db207267db1a467f2841da1c01b06c3559dd9c6.css" media="screen" rel="stylesheet"/>
+<link href="/static/_common/animation-7fc12d665fca943072e7f3c6c84d756b935958c9d92f8a940de7dcfd69c2b253.css" media="screen" rel="stylesheet"/>
+<link href="/static/_common/module_base-52f9ad05f403265ad4033430f00ab7b3dca79686e1b73cf6456eb55acf10a750.css" media="screen" rel="stylesheet"/>
+<link href="/static/_common/contact_form-7d6c73bf9f5dd914006a80bda1ccb9ab37ae9120a36bfc43e414e37243392434.css" media="screen" rel="stylesheet"/>
+<link href="/static/_common/modal_message-2f43ae475b7f02fe3d971433e91ec03913a13df4965f24667ce84e667b461cbb.css" media="screen" rel="stylesheet"/>
+</head>
+<body class="content content_page simple simple_page">
+<div class="page clearfix">
+<div class="theme_header static clearfix" id="themeHeader">
+<div class="padding-div">
+<div class="theme_logo">
+<h1 class="logo theme_logo"><a href="/">{{.Settings.LogoHTML}}</a></h1>
+</div>
+{{template "nav" .}}
+</div>
+</div>
+<div id="content">
+<div class="_4ORMAT_content_wrapper" id="content_page_wrapper">
+<div class="_4ORMAT_content_page_container _4ormat_sort">
+{{template "blocks" .}}
+</div>
+</div>
+</div>
+</div>
+<script src="/static/_common/contact_form-f90453864b4455dfec9c5ae85a56eb995f0fde06ccfaa3323eae52cd78704120.js"></script>
+</body>
+</html>
+{{end}}

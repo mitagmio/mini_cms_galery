@@ -1,0 +1,42 @@
+{{define "nav"}}
+<button class="hide-for-large button-mobile-toggler" data-toggle-nav="" aria-label="Menu">
+<svg class="icon-reorder" height="14" viewBox="0 0 20 14" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M0 1.25C0 .56.556 0 1.25 0h17.5C19.44 0 20 .555 20 1.25c0 .69-.556 1.25-1.25 1.25H1.25C.56 2.5 0 1.945 0 1.25zm0 11.5c0-.69.556-1.25 1.25-1.25h17.5c.69 0 1.25.555 1.25 1.25 0 .69-.556 1.25-1.25 1.25H1.25C.56 14 0 13.445 0 12.75zM0 7c0-.69.556-1.25 1.25-1.25h17.5c.69 0 1.25.555 1.25 1.25 0 .69-.556 1.25-1.25 1.25H1.25C.56 8.25 0 7.695 0 7z" fill-rule="evenodd"></path></svg>
+</button>
+<ul class="hide-for-small theme_menu" id="menu">
+{{- range .Nav }}
+{{- if eq .Kind "category" }}
+<li class="category top_level">
+<a class="category_name top_level_link">{{.Label}}<div class="arr"></div></a>
+<ul class="dropdown expand">
+{{- range .Children }}
+<li class="item{{if eq $.ActiveSlug (trimSlash .Href)}} selected{{end}}">
+<a href="{{.Href}}">{{.Label}}</a>
+</li>
+{{- end }}
+</ul>
+</li>
+{{- else }}
+<li class="item top_level{{if eq $.ActiveSlug (trimSlash .Href)}} selected{{end}}">
+<a class="top_level_link" href="{{.Href}}">{{.Label}}</a>
+</li>
+{{- end }}
+{{- end }}
+</ul>
+<ul class="hide-for-small theme_social" id="social">
+{{- if .Settings.InstagramURL }}
+<li class="icon_instagram social_icon"><a href="{{.Settings.InstagramURL}}" target="_blank" rel="noopener">IG</a></li>
+{{- end }}
+{{- if .Settings.BehanceURL }}
+<li class="icon_behance social_icon"><a href="{{.Settings.BehanceURL}}" target="_blank" rel="noopener">Be</a></li>
+{{- end }}
+{{- if .Settings.LinkedInURL }}
+<li class="icon_linkedin social_icon"><a href="{{.Settings.LinkedInURL}}" target="_blank" rel="noopener">in</a></li>
+{{- end }}
+</ul>
+{{end}}
+
+{{define "blocks"}}
+{{- range .RenderedBlocks }}
+{{.HTML}}
+{{- end }}
+{{end}}
