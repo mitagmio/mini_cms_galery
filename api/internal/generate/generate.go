@@ -10,6 +10,7 @@ import (
 	_ "image/png"
 	"io"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -78,6 +79,39 @@ func (g *Generator) GenerateSite() error {
 		if err := g.writePage(full); err != nil {
 			return fmt.Errorf("page %s: %w", full.Slug, err)
 		}
+	}
+	return g.pruneObsoletePageDirs(pages)
+}
+
+// pruneObsoletePageDirs removes /{old-slug}/ dirs left after renames so preview
+// does not keep stale pages (e.g. empty BA range UI under a previous slug).
+func (g *Generator) pruneObsoletePageDirs(pages []cms.Page) error {
+	keep := map[string]bool{
+		"assets": true,
+		"static": true,
+	}
+	for _, p := range pages {
+		if s := strings.Trim(p.Slug, "/"); s != "" {
+			keep[s] = true
+		}
+	}
+	entries, err := os.ReadDir(g.Cfg.OutDir)
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if keep[name] || strings.HasPrefix(name, ".") {
+			continue
+		}
+		index := filepath.Join(g.Cfg.OutDir, name, "index.html")
+		if _, err := os.Stat(index); err != nil {
+			continue
+		}
+		_ = os.RemoveAll(filepath.Join(g.Cfg.OutDir, name))
 	}
 	return nil
 }
@@ -389,6 +423,11 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			afterURL, _ := data["after_url"].(string)
 			before, _ := resolve(beforeID, beforeURL)
 			after, _ := resolve(afterID, afterURL)
+			// Empty BA pair: skip — native range input otherwise shows as a blue strip
+			// (gallery pages don't load comparison_slider CSS).
+			if strings.TrimSpace(before) == "" && strings.TrimSpace(after) == "" {
+				continue
+			}
 			overlay, _ := data["overlay"].(bool)
 			cls := "comparison_slider"
 			if overlay {
@@ -415,7 +454,7 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 <div class="comparison_slider__copy_wrap"></div>
 </div>
 </div>
-</div>`, uid, cls, template.HTMLEscapeString(after), template.HTMLEscapeString(before))
+</div>`, uid, cls, pathURL(after), pathURL(before))
 
 		case cms.BlockGalleryImage:
 			mid, _ := data["media_id"].(string)
@@ -430,7 +469,7 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 <img alt="%s" class="lazyload" data-pin-nopin="true" loading="eager" src="%s" data-src="%s"/>
 </div>
 </div>
-</div>`, template.HTMLEscapeString(alt), template.HTMLEscapeString(src), template.HTMLEscapeString(src))
+</div>`, template.HTMLEscapeString(alt), pathURL(src), pathURL(src))
 
 		case cms.BlockRichText:
 			raw, _ := data["html"].(string)
@@ -475,6 +514,21 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 		out = append(out, renderedBlock{HTML: template.HTML(html)})
 	}
 	return out, used, nil
+}
+
+// pathURL percent-encodes each path segment so Cyrillic filenames work on GitHub Pages.
+func pathURL(p string) string {
+	if p == "" || strings.HasPrefix(p, "http://") || strings.HasPrefix(p, "https://") || strings.HasPrefix(p, "data:") {
+		return template.HTMLEscapeString(p)
+	}
+	parts := strings.Split(p, "/")
+	for i, seg := range parts {
+		if seg == "" {
+			continue
+		}
+		parts[i] = url.PathEscape(seg)
+	}
+	return strings.Join(parts, "/")
 }
 
 func (g *Generator) copyMedia(m cms.Media) error {
@@ -524,6 +578,19 @@ func (g *Generator) copyThemeAssets() error {
 	if src == "" {
 		return nil
 	}
+	srcAbs, err := filepath.Abs(src)
+	if err != nil {
+		srcAbs = src
+	}
+	outAbs, err := filepath.Abs(g.Cfg.OutDir)
+	if err != nil {
+		outAbs = g.Cfg.OutDir
+	}
+	// Publish uses ThemeSrc == OutDir (/front → /front). Copying a file onto itself
+	// truncates it to 0 bytes — skip the whole tree in that case.
+	if srcAbs == outAbs {
+		return nil
+	}
 	dirs := []string{"assets", "static", "fonts"}
 	for _, d := range dirs {
 		from := filepath.Join(src, d)
@@ -556,6 +623,11 @@ func copyDir(src, dst string) error {
 }
 
 func copyFile(src, dst string) error {
+	absSrc, err1 := filepath.Abs(src)
+	absDst, err2 := filepath.Abs(dst)
+	if err1 == nil && err2 == nil && absSrc == absDst {
+		return nil
+	}
 	in, err := os.Open(src)
 	if err != nil {
 		return err

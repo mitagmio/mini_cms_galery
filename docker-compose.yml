@@ -8,12 +8,10 @@ services:
       - ./.docker-volumes/api-data:/data
       - ./.docker-volumes/api-uploads:/data/uploads
       - ./.docker-volumes/api-preview:/data/preview
-      # Generator source/output for static site (publish writes here)
+      # Generator source/output for static site (publish writes + commits here)
       - ./front:/front
-      # Optional GitHub Pages worktree / clone for git push
+      # Optional legacy worktree
       - ./.docker-volumes/api-ghp:/data/ghp
-      # Optional: mount deploy key if using GHP_SSH_KEY_PATH (uncomment)
-      # - ./.docker-volumes/api-ghp-ssh:/data/ghp-ssh:ro
     expose:
       - "8080"
     restart: unless-stopped

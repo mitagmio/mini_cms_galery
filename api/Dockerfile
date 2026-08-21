@@ -9,7 +9,8 @@ FROM alpine:3.20
 RUN apk add --no-cache ca-certificates git
 WORKDIR /app
 COPY --from=build /out/server /app/server
-RUN mkdir -p /data/uploads /data/preview
+RUN mkdir -p /data/uploads /data/preview \
+ && git config --system --add safe.directory /front
 ENV LISTEN_ADDR=:8080 \
     DATA_DIR=/data \
     UPLOAD_DIR=/data/uploads \

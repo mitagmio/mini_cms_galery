@@ -189,7 +189,26 @@ UPDATE pages SET slug=?, title=?, theme=?, status=?, sort_order=?, meta_descript
 	if err != nil {
 		return Page{}, err
 	}
-	return s.GetPage(id)
+	out, err := s.GetPage(id)
+	if err != nil {
+		return Page{}, err
+	}
+	_ = s.SyncNavForPage(out)
+	return out, nil
+}
+
+// SyncNavForPage updates menu label/href for all nav rows linked to this page.
+func (s *Store) SyncNavForPage(p Page) error {
+	label := strings.TrimSpace(p.NavLabel)
+	if label == "" {
+		label = strings.TrimSpace(p.Title)
+	}
+	href := "/"
+	if !p.IsHomepage && p.Slug != "" {
+		href = "/" + strings.Trim(p.Slug, "/")
+	}
+	_, err := s.db.Exec(`UPDATE nav SET label = ?, href = ? WHERE page_id = ? AND page_id != ''`, label, href, p.ID)
+	return err
 }
 
 func (s *Store) DeletePage(id string) error {

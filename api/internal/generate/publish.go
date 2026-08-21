@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"sheyanova.art/api/internal/cms"
 	"sheyanova.art/api/internal/httpx"
@@ -99,7 +100,7 @@ func (s *Service) HandlePublish(w http.ResponseWriter, r *http.Request) {
 	if publishDir == "" {
 		publishDir = prevOut
 	}
-	pushStatus, pushDetail := PushToGitHub(publishDir)
+	pushStatus, pushDetail := PushFrontRepo(publishDir, body.Note)
 	detail := cms.MustJSON(map[string]any{
 		"outDir": publishDir,
 		"git":    pushDetail,
@@ -120,86 +121,124 @@ func (s *Service) HandlePublish(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// PushToGitHub is a skeleton for publishing generated files to GitHub Pages / repo.
-// When GITHUB_TOKEN / GITHUB_REPO are unset, returns stub status with TODO.
-func PushToGitHub(generatedDir string) (status string, detail map[string]any) {
-	token := os.Getenv("GITHUB_TOKEN")
-	if token == "" {
-		token = os.Getenv("GH_TOKEN")
-	}
-	repo := os.Getenv("GITHUB_REPO") // e.g. owner/repo
-	if repo == "" {
-		repo = os.Getenv("GHP_REPO")
-	}
-	branch := os.Getenv("GITHUB_BRANCH")
-	if branch == "" {
-		branch = os.Getenv("GHP_BRANCH")
-	}
+// PushFrontRepo commits the already-generated FRONT_DIR tree in place and pushes
+// to GitHub via HTTPS + GH_TOKEN (PAT), so the server checkout stays in sync with origin.
+func PushFrontRepo(frontDir, note string) (status string, detail map[string]any) {
+	repo := firstEnv("GITHUB_REPO", "GHP_REPO")
+	branch := firstEnv("GITHUB_BRANCH", "GHP_BRANCH")
 	if branch == "" {
 		branch = "main"
 	}
-	targetDir := os.Getenv("GITHUB_TARGET_DIR")
-	if targetDir == "" {
-		targetDir = "."
-	}
+	token := firstEnv("GITHUB_TOKEN", "GH_TOKEN")
 
 	detail = map[string]any{
-		"repo":       repo,
-		"branch":     branch,
-		"target_dir": targetDir,
-		"source":     generatedDir,
+		"repo":   repo,
+		"branch": branch,
+		"source": frontDir,
+		"mode":   "in-place",
+		"auth":   "https-token",
 	}
 
-	if token == "" || repo == "" {
-		detail["todo"] = "Set GH_TOKEN (or GITHUB_TOKEN) and GITHUB_REPO to enable git push publish"
-		detail["message"] = "git push stubbed — credentials unset"
-		log.Printf("publish: git push stubbed (GH_TOKEN/GITHUB_TOKEN or repo unset)")
+	if frontDir == "" {
+		detail["error"] = "FRONT_DIR empty"
+		return "error", detail
+	}
+	if _, err := os.Stat(filepath.Join(frontDir, ".git")); err != nil {
+		detail["error"] = "FRONT_DIR is not a git checkout (.git missing)"
+		return "error", detail
+	}
+	if repo == "" {
+		detail["todo"] = "Set GITHUB_REPO (owner/name)"
+		detail["message"] = "git push stubbed — repo unset"
+		return "stub", detail
+	}
+	if token == "" {
+		detail["todo"] = "Set GH_TOKEN (or GITHUB_TOKEN)"
+		detail["message"] = "git push stubbed — token unset"
+		log.Printf("publish: git push stubbed (GH_TOKEN unset)")
 		return "stub", detail
 	}
 
-	// Skeleton implementation: clone/update worktree and copy files, then push.
-	work := filepath.Join(os.TempDir(), "sheyanova-publish")
-	_ = os.RemoveAll(work)
+	env := append([]string{}, os.Environ()...)
+	env = append(env, "GIT_TERMINAL_PROMPT=0")
+
+	// Embed PAT in origin URL for fetch/push (local repo only; not committed).
 	remote := fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", token, repo)
-	if err := runCmd("git", "clone", "--depth", "1", "--branch", branch, remote, work); err != nil {
-		// try orphan branch create
-		if err2 := runCmd("git", "clone", "--depth", "1", remote, work); err2 != nil {
-			detail["error"] = err.Error()
-			return "error", detail
-		}
-		_ = runCmd("git", "-C", work, "checkout", "--orphan", branch)
+
+	_ = runCmdEnv(env, "git", "-C", frontDir, "config", "user.email", "cms@sheyanova.art")
+	_ = runCmdEnv(env, "git", "-C", frontDir, "config", "user.name", "Sheyanova CMS")
+	_ = runCmdEnv(env, "git", "-C", frontDir, "remote", "set-url", "origin", remote)
+
+	_ = runCmdEnv(env, "git", "-C", frontDir, "add", "-A")
+	msg := "cms publish"
+	if strings.TrimSpace(note) != "" {
+		msg = "cms publish: " + strings.TrimSpace(note)
+	}
+	msg = fmt.Sprintf("%s\n\nGenerated at %s", msg, time.Now().UTC().Format(time.RFC3339))
+
+	commitErr := runCmdEnv(env, "git", "-C", frontDir, "commit", "-m", msg)
+	if commitErr != nil {
+		detail["message"] = "nothing to commit or commit failed"
+		detail["commit_error"] = commitErr.Error()
 	}
 
-	dest := filepath.Join(work, targetDir)
-	if targetDir == "." {
-		dest = work
-	}
-	if err := syncDir(generatedDir, dest); err != nil {
-		detail["error"] = err.Error()
+	_ = runCmdEnv(env, "git", "-C", frontDir, "fetch", "origin", branch)
+	if err := runCmdEnv(env, "git", "-C", frontDir, "pull", "--rebase", "origin", branch); err != nil {
+		detail["error"] = "git pull --rebase failed: " + err.Error()
+		_ = runCmdEnv(env, "git", "-C", frontDir, "rebase", "--abort")
 		return "error", detail
 	}
-	_ = runCmd("git", "-C", work, "config", "user.email", "cms@sheyanova.art")
-	_ = runCmd("git", "-C", work, "config", "user.name", "Sheyanova CMS")
-	_ = runCmd("git", "-C", work, "add", "-A")
-	if err := runCmd("git", "-C", work, "commit", "-m", "cms publish"); err != nil {
-		detail["message"] = "nothing to commit or commit failed"
-		detail["commit_error"] = err.Error()
-	}
-	if err := runCmd("git", "-C", work, "push", "origin", branch); err != nil {
+
+	sha, _ := cmdOutput(env, "git", "-C", frontDir, "rev-parse", "HEAD")
+	detail["commit"] = strings.TrimSpace(sha)
+
+	if err := runCmdEnv(env, "git", "-C", frontDir, "push", "origin", branch); err != nil {
 		detail["error"] = err.Error()
+		// Best-effort: strip token from origin even on failure.
+		_ = runCmdEnv(env, "git", "-C", frontDir, "remote", "set-url", "origin", fmt.Sprintf("git@github.com:%s.git", repo))
 		return "error", detail
 	}
+
+	// Restore SSH remote for host/interactive use (don't leave PAT in .git/config).
+	_ = runCmdEnv(env, "git", "-C", frontDir, "remote", "set-url", "origin", fmt.Sprintf("git@github.com:%s.git", repo))
+
 	detail["message"] = "pushed"
 	return "ok", detail
 }
 
+func firstEnv(keys ...string) string {
+	for _, k := range keys {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
 func runCmd(name string, args ...string) error {
+	return runCmdEnv(nil, name, args...)
+}
+
+func runCmdEnv(env []string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
+	if env != nil {
+		cmd.Env = env
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return cmd.Run()
 }
 
+func cmdOutput(env []string, name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	if env != nil {
+		cmd.Env = env
+	}
+	out, err := cmd.Output()
+	return string(out), err
+}
+
+// syncDir kept for any legacy callers / tests.
 func syncDir(src, dst string) error {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		return err
@@ -211,6 +250,12 @@ func syncDir(src, dst string) error {
 		rel, err := filepath.Rel(src, path)
 		if err != nil {
 			return err
+		}
+		if rel == ".git" || strings.HasPrefix(rel, ".git"+string(os.PathSeparator)) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		target := filepath.Join(dst, rel)
 		if d.IsDir() {
