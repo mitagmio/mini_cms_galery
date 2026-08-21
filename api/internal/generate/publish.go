@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"sheyanova.art/api/internal/cms"
@@ -19,6 +20,18 @@ import (
 type Service struct {
 	Gen      *Generator
 	FrontDir string // publish output (FRONT_DIR); draft generate stays on Gen.Cfg.OutDir
+	mu       sync.Mutex
+}
+
+// GeneratePreview writes the draft site into OutDir with PathPrefix=/preview.
+func (s *Service) GeneratePreview() error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	prevPrefix := s.Gen.Cfg.PathPrefix
+	s.Gen.Cfg.PathPrefix = strings.TrimRight(s.Gen.Cfg.PreviewBase, "/")
+	err := s.Gen.GenerateSite()
+	s.Gen.Cfg.PathPrefix = prevPrefix
+	return err
 }
 
 func (s *Service) HandleGenerate(w http.ResponseWriter, r *http.Request) {
@@ -26,11 +39,7 @@ func (s *Service) HandleGenerate(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	prevPrefix := s.Gen.Cfg.PathPrefix
-	s.Gen.Cfg.PathPrefix = strings.TrimRight(s.Gen.Cfg.PreviewBase, "/")
-	err := s.Gen.GenerateSite()
-	s.Gen.Cfg.PathPrefix = prevPrefix
-	if err != nil {
+	if err := s.GeneratePreview(); err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -55,10 +64,12 @@ func (s *Service) HandlePreviewPage(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "page id required")
 		return
 	}
+	s.mu.Lock()
 	prevPrefix := s.Gen.Cfg.PathPrefix
 	s.Gen.Cfg.PathPrefix = strings.TrimRight(s.Gen.Cfg.PreviewBase, "/")
 	url, err := s.Gen.GeneratePage(id)
 	s.Gen.Cfg.PathPrefix = prevPrefix
+	s.mu.Unlock()
 	if err != nil {
 		if err == cms.ErrNotFound {
 			httpx.WriteError(w, http.StatusNotFound, "not found")
@@ -82,6 +93,7 @@ func (s *Service) HandlePublish(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
+	s.mu.Lock()
 	prevOut := s.Gen.Cfg.OutDir
 	prevPrefix := s.Gen.Cfg.PathPrefix
 	if s.FrontDir != "" {
@@ -91,6 +103,7 @@ func (s *Service) HandlePublish(w http.ResponseWriter, r *http.Request) {
 	err := s.Gen.GenerateSite()
 	s.Gen.Cfg.OutDir = prevOut
 	s.Gen.Cfg.PathPrefix = prevPrefix
+	s.mu.Unlock()
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -80,7 +80,9 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 - On generate: copy referenced files → `assets/cdn/…`; rewrite `src` to site-relative paths
 
 ### `nav`
-- `id`, `parent_id`, `label`, `page_id` \| `external_url`, `position`, `visible`
+- `id`, `parent_id`, `label`, `href`, `page_id`, `sort_order`, `kind` (`link` \| `category`), `visible`
+- Tree: top-level `link` (simple item) or `category` (one-level dropdown; children are `link`s). Category `href` may be empty. Link with `page_id` and empty `href` is filled from the page slug.
+- PUT `/api/admin/nav` replaces the full tree, then immediately regenerates the **preview** draft (`GenerateSite`, `PathPrefix=/preview`). Does not publish to GitHub.
 - Seed: BEAUTY → editorial children; top-level BEFORE\|AFTER, FASHION, EDITORIAL, PRODUCT, ABOUT, CONTACT + socials
 
 ### `publish_history`
@@ -97,7 +99,7 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | GET | `/health` | no | |
 | GET | `/api/admin/me` | yes | token check |
 | GET/PUT | `/api/admin/settings` | yes | |
-| GET/PUT | `/api/admin/nav` | yes | replace tree |
+| GET/PUT | `/api/admin/nav` | yes | nested tree; PUT replaces + regenerates preview |
 | GET | `/api/admin/pages` | yes | list |
 | POST | `/api/admin/pages` | yes | create |
 | GET/PATCH/DELETE | `/api/admin/pages/{id}` | yes | |

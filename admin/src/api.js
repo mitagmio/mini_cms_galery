@@ -80,6 +80,7 @@ export const admin = {
   nav: {
     get: () => api('/api/admin/nav'),
     put: (body) => api('/api/admin/nav', { method: 'PUT', body }),
+    save: (nav) => api('/api/admin/nav', { method: 'PUT', body: { nav } }),
   },
   pages: {
     list: () => api('/api/admin/pages'),

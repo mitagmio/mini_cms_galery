@@ -317,7 +317,7 @@ a.button.secondary, .button.secondary {
 .editor-meta { padding: 0.75rem 1rem; border-bottom: 1px solid var(--line); }
 .editor-panes {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr) 280px;
+  grid-template-columns: 200px minmax(0, 1fr) 300px;
   gap: 0;
   flex: 1;
   min-height: 0;
@@ -395,10 +395,22 @@ a.button.secondary, .button.secondary {
   background: transparent;
   color: var(--ink);
   border: 1px solid var(--line);
-  padding: 0.4rem;
+  padding: 0.35rem 0.3rem;
+  font-size: 0.8rem;
 }
 .tabs button.active { background: var(--ink); color: #fff; }
 .inspector-body { display: flex; flex-direction: column; gap: 0.75rem; }
+.menu-status {
+  font-size: 0.85rem;
+  margin: 0;
+  line-height: 1.35;
+}
+.menu-full-link {
+  font-size: 0.85rem;
+  text-decoration: none;
+  border-bottom: 1px solid var(--line);
+  align-self: flex-start;
+}
 .field-row {
   display: flex;
   align-items: center;
@@ -424,6 +436,64 @@ a.button.secondary, .button.secondary {
 .template-card .row-actions { margin-top: auto; padding-top: 0.5rem; }
 .template-card .badge + .badge { margin-left: 0.35rem; }
 .muted.small { font-size: 0.8rem; }
+
+.menu-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  max-width: 820px;
+}
+.menu-item,
+.menu-child {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  padding: 0.85rem 1rem;
+}
+.menu-child { background: var(--bg); }
+.menu-item-head,
+.menu-child-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.6rem 0.75rem;
+}
+.menu-label-field { flex: 1 1 180px; min-width: 140px; }
+.menu-move {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+.menu-visible {
+  padding-bottom: 0.35rem;
+  white-space: nowrap;
+}
+.menu-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+.menu-children {
+  margin-top: 0.9rem;
+  padding-top: 0.75rem;
+  border-top: 1px dashed var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+.menu-children-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+.menu-children-head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+@media (max-width: 640px) {
+  .menu-fields { grid-template-columns: 1fr; }
+}
 .block-checkboxes {
   border: 1px solid var(--line);
   padding: 0.75rem 1rem;

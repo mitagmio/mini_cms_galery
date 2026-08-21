@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 	"time"
 )
 
@@ -32,6 +33,14 @@ func ValidTheme(t string) bool {
 	default:
 		return false
 	}
+}
+
+// HrefForPage is the site-root path for a CMS page (homepage → "/").
+func HrefForPage(p Page) string {
+	if p.IsHomepage || strings.TrimSpace(p.Slug) == "" {
+		return "/"
+	}
+	return "/" + strings.Trim(p.Slug, "/")
 }
 
 func ValidBlockType(t string) bool {

@@ -8,6 +8,7 @@ import PageEditor from './pages/PageEditor'
 import PagesList from './pages/PagesList'
 import Preview from './pages/Preview'
 import Publish from './pages/Publish'
+import NavEditor from './pages/NavEditor'
 import Settings from './pages/Settings'
 import Templates from './pages/Templates'
 
@@ -32,6 +33,8 @@ export default function App() {
         <Route index element={<Dashboard />} />
         <Route path="pages" element={<PagesList />} />
         <Route path="pages/:id" element={<PageEditor />} />
+        <Route path="nav" element={<NavEditor />} />
+        <Route path="menu" element={<Navigate to="/nav" replace />} />
         <Route path="media" element={<MediaLibrary />} />
         <Route path="settings" element={<Settings />} />
         <Route path="templates" element={<Templates />} />

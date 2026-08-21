@@ -3,9 +3,9 @@ package cms
 import "encoding/json"
 
 const (
-	ThemeBAContent        = "ba_content"
-	ThemePanoramaGallery  = "panorama_gallery"
-	ThemeTextContent      = "text_content"
+	ThemeBAContent       = "ba_content"
+	ThemePanoramaGallery = "panorama_gallery"
+	ThemeTextContent     = "text_content"
 
 	BlockComparisonSlider = "comparison_slider"
 	BlockGalleryImage     = "gallery_image"
@@ -14,22 +14,22 @@ const (
 )
 
 type SiteSettings struct {
-	SiteName            string `json:"site_name"`
-	LogoHTML            string `json:"logo_html"`
-	Description         string `json:"description"`
-	OGImage             string `json:"og_image"`
-	InstagramURL        string `json:"instagram_url"`
-	BehanceURL          string `json:"behance_url"`
-	LinkedInURL         string `json:"linkedin_url"`
-	Copyright           string `json:"copyright"`
-	CanonicalBase       string `json:"canonical_base"`
-	DefaultTitleSuffix  string `json:"default_title_suffix,omitempty"`
-	DefaultDescription  string `json:"default_description,omitempty"`
-	Robots              string `json:"robots,omitempty"`
-	FaviconMediaID      string `json:"favicon_media_id,omitempty"`
-	OGImageMediaID      string `json:"og_image_media_id,omitempty"`
-	MailtoAddress       string `json:"mailto_address,omitempty"`
-	UpdatedAt           string `json:"updated_at,omitempty"`
+	SiteName           string `json:"site_name"`
+	LogoHTML           string `json:"logo_html"`
+	Description        string `json:"description"`
+	OGImage            string `json:"og_image"`
+	InstagramURL       string `json:"instagram_url"`
+	BehanceURL         string `json:"behance_url"`
+	LinkedInURL        string `json:"linkedin_url"`
+	Copyright          string `json:"copyright"`
+	CanonicalBase      string `json:"canonical_base"`
+	DefaultTitleSuffix string `json:"default_title_suffix,omitempty"`
+	DefaultDescription string `json:"default_description,omitempty"`
+	Robots             string `json:"robots,omitempty"`
+	FaviconMediaID     string `json:"favicon_media_id,omitempty"`
+	OGImageMediaID     string `json:"og_image_media_id,omitempty"`
+	MailtoAddress      string `json:"mailto_address,omitempty"`
+	UpdatedAt          string `json:"updated_at,omitempty"`
 	// Social is admin-friendly nested shape; filled on marshal via SettingsDTO.
 	Social map[string]string `json:"social,omitempty"`
 }
@@ -120,6 +120,11 @@ type Media struct {
 	UpdatedAt    string `json:"updated_at,omitempty"`
 }
 
+const (
+	NavKindLink     = "link"
+	NavKindCategory = "category"
+)
+
 type NavItem struct {
 	ID        string    `json:"id"`
 	Label     string    `json:"label"`
@@ -129,7 +134,7 @@ type NavItem struct {
 	SortOrder int       `json:"sort_order"`
 	Kind      string    `json:"kind"` // link | category
 	Visible   bool      `json:"visible"`
-	Children  []NavItem `json:"children,omitempty"`
+	Children  []NavItem `json:"children"`
 }
 
 type PublishHistory struct {
@@ -143,18 +148,18 @@ type PublishHistory struct {
 // Template is a reusable page blueprint. theme/key must be a generate engine
 // (ba_content | panorama_gallery | text_content). System rows use id == theme.
 type Template struct {
-	ID             string          `json:"id"`
-	Theme          string          `json:"theme"`
-	Key            string          `json:"key,omitempty"` // alias of theme
-	Name           string          `json:"name"`
-	Label          string          `json:"label,omitempty"` // alias of name
-	Description    string          `json:"description"`
-	AllowedBlocks  []string        `json:"allowed_blocks"`
-	DefaultBlocks  json.RawMessage `json:"default_blocks"`
-	IsSystem       bool            `json:"is_system"`
-	SortOrder      int             `json:"sort_order"`
-	CreatedAt      string          `json:"created_at"`
-	UpdatedAt      string          `json:"updated_at"`
+	ID            string          `json:"id"`
+	Theme         string          `json:"theme"`
+	Key           string          `json:"key,omitempty"` // alias of theme
+	Name          string          `json:"name"`
+	Label         string          `json:"label,omitempty"` // alias of name
+	Description   string          `json:"description"`
+	AllowedBlocks []string        `json:"allowed_blocks"`
+	DefaultBlocks json.RawMessage `json:"default_blocks"`
+	IsSystem      bool            `json:"is_system"`
+	SortOrder     int             `json:"sort_order"`
+	CreatedAt     string          `json:"created_at"`
+	UpdatedAt     string          `json:"updated_at"`
 }
 
 func (t *Template) NormalizeAliases() {

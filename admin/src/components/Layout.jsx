@@ -5,6 +5,7 @@ import { useAuth } from '../auth'
 const LINKS = [
   { to: '/', end: true, label: 'Dashboard' },
   { to: '/pages', label: 'Pages' },
+  { to: '/nav', label: 'Menu' },
   { to: '/media', label: 'Media' },
   { to: '/templates', label: 'Templates' },
   { to: '/settings', label: 'Settings' },

@@ -94,10 +94,14 @@ func main() {
 	}
 	genSvc := &generate.Service{Gen: gen, FrontDir: cfg.FrontDir}
 	cmsH := &cms.Handler{
-		Store:     store,
-		FrontDir:  frontImportSrc,
-		MaxUpload: cfg.MaxUploadMB << 20,
-		ImportFn:  runImport,
+		Store:       store,
+		FrontDir:    frontImportSrc,
+		PreviewBase: cfg.PreviewBaseURL,
+		MaxUpload:   cfg.MaxUploadMB << 20,
+		ImportFn:    runImport,
+		GeneratePreview: func() error {
+			return genSvc.GeneratePreview()
+		},
 	}
 	guard := auth.New(cfg.AdminToken)
 

@@ -172,13 +172,13 @@ func (g *Generator) buildFormatData(p cms.Page) template.JS {
 			"assets": assets,
 		},
 		"theme": map[string]any{
-			"gallery_image_padding":       "Normal",
-			"listing_thumbnail_size":      "Auto",
-			"arrow_style":                 "Dark",
-			"arrow_thickness":             "Medium",
-			"gallery_change_image_speed":  "Normal",
-			"gallery_full_height_mobile":  true,
-			"menu_style":                  "Drop Down",
+			"gallery_image_padding":      "Normal",
+			"listing_thumbnail_size":     "Auto",
+			"arrow_style":                "Dark",
+			"arrow_thickness":            "Medium",
+			"gallery_change_image_speed": "Normal",
+			"gallery_full_height_mobile": true,
+			"menu_style":                 "Drop Down",
 			"gallery_caption_typography": map[string]any{
 				"background": "rgba(0,0,0,0.5)",
 			},
@@ -261,18 +261,32 @@ func (g *Generator) sitePath(href string) string {
 }
 
 func (g *Generator) prefixNav(items []cms.NavItem) []cms.NavItem {
-	out := make([]cms.NavItem, len(items))
-	for i, it := range items {
-		cp := it
-		if cp.Href != "" {
-			cp.Href = g.sitePath(cp.Href)
+	out := make([]cms.NavItem, 0, len(items))
+	for _, it := range items {
+		if !it.Visible {
+			continue
 		}
+		cp := it
 		if len(it.Children) > 0 {
 			cp.Children = g.prefixNav(it.Children)
+		} else {
+			cp.Children = []cms.NavItem{}
 		}
-		out[i] = cp
+		if cp.Kind == cms.NavKindCategory && len(cp.Children) == 0 {
+			continue
+		}
+		if cp.Href != "" && !isExternalHref(cp.Href) {
+			cp.Href = g.sitePath(cp.Href)
+		}
+		out = append(out, cp)
 	}
 	return out
+}
+
+func isExternalHref(h string) bool {
+	h = strings.TrimSpace(h)
+	return strings.HasPrefix(h, "http://") || strings.HasPrefix(h, "https://") ||
+		strings.HasPrefix(h, "mailto:") || strings.HasPrefix(h, "//") || strings.HasPrefix(h, "#")
 }
 
 func (g *Generator) writePage(p cms.Page) error {

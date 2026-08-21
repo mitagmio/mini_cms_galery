@@ -15,6 +15,12 @@ export default function PageEditor() {
   const [inspectorTab, setInspectorTab] = useState('block')
   const [mediaIndex, setMediaIndex] = useState({})
   const [picker, setPicker] = useState(null)
+  const [navTree, setNavTree] = useState(null)
+  const [navLoaded, setNavLoaded] = useState(false)
+  const [navError, setNavError] = useState('')
+  const [savingNav, setSavingNav] = useState(false)
+  const [navDirty, setNavDirty] = useState(false)
+  const [menu, setMenu] = useState(emptyMenuState())
 
   const selected = useMemo(
     () => blocks.find((b) => b.id === selectedId) || null,
@@ -35,15 +41,22 @@ export default function PageEditor() {
 
   useEffect(() => {
     let cancelled = false
+    setNavLoaded(false)
+    setNavTree(null)
+    setNavDirty(false)
+    setNavError('')
+    setPage(null)
+    setMenu(emptyMenuState())
     ;(async () => {
       try {
-        const [pRes, bRes] = await Promise.all([
+        const [pRes, bRes, nRes] = await Promise.all([
           admin.pages.get(id),
           admin.pages.getBlocks(id).catch(() => ({ blocks: [] })),
+          admin.nav.get().catch((e) => ({ __error: e })),
         ])
         if (cancelled) return
         const p = pRes.page || pRes
-        setPage({
+        const nextPage = {
           title: '',
           slug: '',
           template: 'ba_content',
@@ -55,10 +68,29 @@ export default function PageEditor() {
             canonical_path: p.seo?.canonical_path || '',
             og_image_media_id: p.seo?.og_image_media_id || p.og_image || '',
           },
-        })
+        }
+        setPage(nextPage)
         const bl = normalizeBlocks(bRes.blocks || bRes.items || p.blocks || [])
         setBlocks(bl)
         setSelectedId(bl[0]?.id || null)
+        if (nRes?.__error) {
+          setNavError(nRes.__error.message || 'Could not load menu')
+          setNavLoaded(false)
+          setMenu(initMenuState([], nextPage))
+        } else {
+          const tree = nRes.nav || nRes.items || nRes.tree
+          if (!Array.isArray(tree)) {
+            setNavError('Could not load menu')
+            setNavLoaded(false)
+            setNavTree(null)
+            setMenu(initMenuState([], nextPage))
+          } else {
+            setNavTree(tree)
+            setNavLoaded(true)
+            setNavError('')
+            setMenu(initMenuState(tree, nextPage))
+          }
+        }
       } catch (e) {
         toast.error(e.message)
       }
@@ -109,6 +141,44 @@ export default function PageEditor() {
     if (selectedId === blockId) setSelectedId(null)
   }
 
+  function patchMenu(patch) {
+    setMenu((prev) => {
+      const next = { ...prev, ...patch }
+      if (patch.placement || patch.categoryId != null || patch.include === true) {
+        next.sortIndex = siblingList(navTree || [], next.placement, next.categoryId, id).length
+      }
+      return next
+    })
+    setNavDirty(true)
+    if (patch.label != null) {
+      setPage((prev) => (prev ? { ...prev, nav_label: patch.label } : prev))
+    }
+  }
+
+  async function persistNav(currentPage, { quiet } = {}) {
+    if (!navLoaded || !currentPage || !Array.isArray(navTree)) return false
+    const tree = buildUpdatedNav(navTree, currentPage, menu)
+    const savedNav = await admin.nav.put({ nav: tree })
+    const nextTree = savedNav.nav || savedNav.items || savedNav.tree || tree
+    setNavTree(nextTree)
+    setMenu(initMenuState(nextTree, currentPage))
+    setNavDirty(false)
+    if (!quiet) toast.ok('Menu saved. Preview will refresh automatically.')
+    return true
+  }
+
+  async function saveMenu() {
+    if (!page) return
+    setSavingNav(true)
+    try {
+      await persistNav(page)
+    } catch (e) {
+      toast.error(e.message)
+    } finally {
+      setSavingNav(false)
+    }
+  }
+
   async function save() {
     if (!page) return
     setSaving(true)
@@ -119,7 +189,7 @@ export default function PageEditor() {
         template: page.template,
         is_homepage: Boolean(page.is_homepage),
         seo: page.seo || {},
-        nav_label: page.nav_label || page.title,
+        nav_label: (menu.include ? menu.label : page.nav_label) || page.title,
         status: page.status || 'draft',
       })
       const p = patched.page || patched
@@ -150,7 +220,20 @@ export default function PageEditor() {
       const saved = await admin.pages.putBlocks(id, payload)
       const bl = normalizeBlocks(saved.blocks || saved.items || payload)
       setBlocks(bl)
-      toast.ok('Saved')
+      if (navLoaded) {
+        const pageForNav = {
+          ...page,
+          ...(p && typeof p === 'object' ? p : {}),
+          id: page.id || id,
+        }
+        try {
+          await persistNav(pageForNav, { quiet: true })
+        } catch (navErr) {
+          toast.error(`Page saved, menu failed: ${navErr.message}`)
+          return
+        }
+      }
+      toast.ok(navLoaded ? 'Saved page and menu' : 'Saved')
     } catch (e) {
       toast.error(e.message)
     } finally {
@@ -316,9 +399,28 @@ export default function PageEditor() {
             >
               Page SEO
             </button>
+            <button
+              type="button"
+              className={inspectorTab === 'menu' ? 'active' : ''}
+              onClick={() => setInspectorTab('menu')}
+            >
+              Menu
+            </button>
           </div>
 
-          {inspectorTab === 'seo' ? (
+          {inspectorTab === 'menu' ? (
+            <PageMenuPanel
+              page={page}
+              navTree={navTree || []}
+              navLoaded={navLoaded}
+              navError={navError}
+              navDirty={navDirty}
+              menu={menu}
+              savingNav={savingNav}
+              onChange={patchMenu}
+              onSave={saveMenu}
+            />
+          ) : inspectorTab === 'seo' ? (
             <div className="inspector-body">
               <label>
                 Meta title
@@ -376,7 +478,7 @@ export default function PageEditor() {
               onDelete={() => removeBlock(selected.id)}
             />
           ) : (
-            <p className="muted inspector-body">Select a block or open Page SEO.</p>
+            <p className="muted inspector-body">Select a block, or open Page SEO / Menu.</p>
           )}
         </aside>
       </div>
@@ -627,4 +729,334 @@ function stripHtml(html) {
     .replace(/<[^>]+>/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+const NEW_DROPDOWN = '__new__'
+
+function emptyMenuState() {
+  return {
+    include: false,
+    label: '',
+    placement: 'top',
+    categoryId: NEW_DROPDOWN,
+    newCategoryName: '',
+    sortIndex: 0,
+    existingId: '',
+  }
+}
+
+function newNavId() {
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID()
+  } catch {
+    /* fall through */
+  }
+  return `n-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
+}
+
+function pageHref(page) {
+  if (!page || page.is_homepage) return '/'
+  const slug = String(page.slug || '').replace(/^\/+|\/+$/g, '')
+  return slug ? `/${slug}` : '/'
+}
+
+function cloneNav(tree) {
+  return JSON.parse(JSON.stringify(tree || []))
+}
+
+function navCategories(tree) {
+  return (tree || []).filter((n) => n.kind === 'category' || (n.children && n.children.length))
+}
+
+function findPageInNav(nodes, pageId, parent = null) {
+  const list = nodes || []
+  const pid = String(pageId || '')
+  if (!pid) return null
+  for (const item of list) {
+    if (item.kind !== 'category' && String(item.page_id || '') === pid) {
+      return { item, parent, siblings: list }
+    }
+    if (item.children?.length) {
+      const inner = findPageInNav(item.children, pid, item)
+      if (inner) return inner
+    }
+  }
+  return null
+}
+
+function siblingList(tree, placement, categoryId, pageId) {
+  const roots = tree || []
+  const pid = String(pageId || '')
+  const notThis = (n) => String(n.page_id || '') !== pid
+  if (placement === 'dropdown' && categoryId && categoryId !== NEW_DROPDOWN) {
+    const cat = roots.find((n) => n.id === categoryId)
+    return (cat?.children || []).filter(notThis)
+  }
+  return roots.filter(notThis)
+}
+
+function initMenuState(tree, page) {
+  const found = findPageInNav(tree, page?.id)
+  const cats = navCategories(tree)
+  if (!found) {
+    return {
+      include: false,
+      label: page?.nav_label || page?.title || '',
+      placement: 'top',
+      categoryId: cats[0]?.id || NEW_DROPDOWN,
+      newCategoryName: '',
+      sortIndex: (tree || []).length,
+      existingId: '',
+    }
+  }
+  const sortIndex = Math.max(
+    0,
+    found.siblings.findIndex((s) => s.id === found.item.id),
+  )
+  return {
+    include: true,
+    label: found.item.label || page?.nav_label || page?.title || '',
+    placement: found.parent ? 'dropdown' : 'top',
+    categoryId: found.parent?.id || cats[0]?.id || NEW_DROPDOWN,
+    newCategoryName: '',
+    sortIndex,
+    existingId: found.item.id || '',
+  }
+}
+
+function removePageFromNav(nodes, pageId) {
+  const pid = String(pageId || '')
+  const out = []
+  for (const item of nodes || []) {
+    if (item.kind !== 'category' && String(item.page_id || '') === pid) continue
+    const children = item.children?.length ? removePageFromNav(item.children, pid) : []
+    if (item.kind === 'category' && children.length === 0) continue
+    out.push({ ...item, children })
+  }
+  return out
+}
+
+function insertAt(list, item, index) {
+  const raw = Number(index)
+  const i = Number.isFinite(raw)
+    ? Math.max(0, Math.min(raw, list.length))
+    : list.length
+  const next = [...list]
+  next.splice(i, 0, item)
+  return next
+}
+
+function reindexNav(nodes, parentId = '') {
+  return (nodes || []).map((n, i) => ({
+    ...n,
+    parent_id: parentId,
+    sort_order: i,
+    visible: n.visible !== false,
+    children: reindexNav(n.children || [], n.id || ''),
+  }))
+}
+
+function serializeNavItem(item, sortOrder) {
+  const kind = item.kind === 'category' ? 'category' : 'link'
+  const out = {
+    id: item.id,
+    label: String(item.label || '').trim(),
+    href: String(item.href || '').trim(),
+    page_id: item.page_id || '',
+    kind,
+    visible: item.visible !== false,
+    sort_order: sortOrder,
+  }
+  if (kind === 'category') {
+    out.children = (item.children || []).map((child, i) =>
+      serializeNavItem({ ...child, kind: 'link' }, i)
+    )
+  }
+  return out
+}
+
+function buildUpdatedNav(tree, page, menu) {
+  if (menu.include) {
+    const label = String(menu.label || page.nav_label || page.title || '').trim()
+    if (!label) throw new Error('Menu label is required')
+    if (menu.placement === 'dropdown') {
+      if (menu.categoryId === NEW_DROPDOWN) {
+        const name = String(menu.newCategoryName || '').trim()
+        if (!name) throw new Error('Name the new dropdown')
+      } else if (!menu.categoryId) {
+        throw new Error('Choose a dropdown')
+      }
+    }
+  }
+
+  let next = removePageFromNav(cloneNav(tree), page.id)
+  if (!menu.include) return reindexNav(next).map((item, i) => serializeNavItem(item, i))
+
+  const link = {
+    id: menu.existingId || newNavId(),
+    label: String(menu.label || page.nav_label || page.title || 'Untitled').trim(),
+    href: pageHref(page),
+    page_id: page.id,
+    parent_id: '',
+    sort_order: 0,
+    kind: 'link',
+    visible: true,
+    children: [],
+  }
+
+  if (menu.placement === 'dropdown' && menu.categoryId === NEW_DROPDOWN) {
+    const catId = newNavId()
+    const cat = {
+      id: catId,
+      label: String(menu.newCategoryName || '').trim(),
+      href: '',
+      page_id: '',
+      parent_id: '',
+      sort_order: 0,
+      kind: 'category',
+      visible: true,
+      children: [{ ...link, parent_id: catId }],
+    }
+    next = insertAt(next, cat, menu.sortIndex)
+  } else if (menu.placement === 'dropdown') {
+    const catIdx = next.findIndex((n) => n.id === menu.categoryId)
+    if (catIdx < 0) {
+      next = insertAt(next, link, menu.sortIndex)
+    } else {
+      const cat = next[catIdx]
+      const child = { ...link, parent_id: cat.id }
+      const children = insertAt(cat.children || [], child, menu.sortIndex)
+      next = next.map((n, i) => (i === catIdx ? { ...n, kind: 'category', children } : n))
+    }
+  } else {
+    next = insertAt(next, link, menu.sortIndex)
+  }
+  return reindexNav(next).map((item, i) => serializeNavItem(item, i))
+}
+
+function PageMenuPanel({
+  page,
+  navTree,
+  navLoaded,
+  navError,
+  navDirty,
+  menu,
+  savingNav,
+  onChange,
+  onSave,
+}) {
+  const saved = findPageInNav(navTree, page.id)
+  const cats = navCategories(navTree)
+  const others = siblingList(navTree, menu.placement, menu.categoryId, page.id)
+  const savedWhere = !navLoaded
+    ? 'Menu is not loaded'
+    : !saved
+      ? 'This page is not in the menu'
+      : saved.parent
+        ? `In the menu · inside “${saved.parent.label}”`
+        : 'In the menu · top-level link'
+  const posLabel =
+    menu.placement === 'dropdown' && menu.categoryId !== NEW_DROPDOWN
+      ? 'Position in dropdown'
+      : menu.placement === 'dropdown'
+        ? 'Dropdown position in top menu'
+        : 'Position in top menu'
+  const sortValue = String(Math.min(menu.sortIndex ?? others.length, others.length))
+
+  return (
+    <div className="inspector-body">
+      <p className="menu-status">{savedWhere}</p>
+      {navError ? <p className="error">{navError}</p> : null}
+      {navDirty && navLoaded ? <p className="muted">Unsaved menu changes</p> : null}
+
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={Boolean(menu.include)}
+          disabled={!navLoaded}
+          onChange={(e) => onChange({ include: e.target.checked })}
+        />
+        Include in menu
+      </label>
+
+      {menu.include ? (
+        <>
+          <p className="muted">
+            {menu.placement === 'top'
+              ? 'Will appear as a top-level link'
+              : menu.categoryId === NEW_DROPDOWN
+                ? `Will appear in new dropdown “${menu.newCategoryName || '…'}”`
+                : `Will appear in “${cats.find((c) => c.id === menu.categoryId)?.label || '…'}”`}
+          </p>
+          <label>
+            Label
+            <input
+              value={menu.label || ''}
+              onChange={(e) => onChange({ label: e.target.value })}
+              placeholder={page.title || 'Menu label'}
+            />
+          </label>
+          <label>
+            Placement
+            <select
+              value={menu.placement}
+              onChange={(e) => onChange({ placement: e.target.value })}
+            >
+              <option value="top">Top-level link</option>
+              <option value="dropdown">Inside dropdown</option>
+            </select>
+          </label>
+          {menu.placement === 'dropdown' ? (
+            <>
+              <label>
+                Dropdown
+                <select
+                  value={menu.categoryId}
+                  onChange={(e) => onChange({ categoryId: e.target.value })}
+                >
+                  {cats.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                  <option value={NEW_DROPDOWN}>Create new dropdown…</option>
+                </select>
+              </label>
+              {menu.categoryId === NEW_DROPDOWN ? (
+                <label>
+                  New dropdown name
+                  <input
+                    value={menu.newCategoryName || ''}
+                    onChange={(e) => onChange({ newCategoryName: e.target.value })}
+                    placeholder="e.g. BEAUTY"
+                  />
+                </label>
+              ) : null}
+            </>
+          ) : null}
+          <label>
+            {posLabel}
+            <select
+              value={sortValue}
+              onChange={(e) => onChange({ sortIndex: Number(e.target.value) })}
+            >
+              <option value="0">First</option>
+              {others.map((s, i) => (
+                <option key={s.id || i} value={String(i + 1)}>
+                  After {s.label || 'item'}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      ) : null}
+
+      <button type="button" onClick={onSave} disabled={!navLoaded || savingNav}>
+        {savingNav ? 'Saving menu…' : 'Save menu'}
+      </button>
+      <Link to="/nav" className="menu-full-link">
+        Edit full menu →
+      </Link>
+    </div>
+  )
 }

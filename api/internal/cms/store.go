@@ -9,6 +9,7 @@ import (
 )
 
 var ErrNotFound = errors.New("not found")
+var ErrInvalidNav = errors.New("invalid nav")
 
 func (s *Store) GetSettings() (SiteSettings, error) {
 	var st SiteSettings
@@ -203,10 +204,7 @@ func (s *Store) SyncNavForPage(p Page) error {
 	if label == "" {
 		label = strings.TrimSpace(p.Title)
 	}
-	href := "/"
-	if !p.IsHomepage && p.Slug != "" {
-		href = "/" + strings.Trim(p.Slug, "/")
-	}
+	href := HrefForPage(p)
 	_, err := s.db.Exec(`UPDATE nav SET label = ?, href = ? WHERE page_id = ? AND page_id != ''`, label, href, p.ID)
 	return err
 }
@@ -468,7 +466,7 @@ func (s *Store) CountPages() (int, error) {
 func (s *Store) GetNavFlat() ([]NavItem, error) {
 	rows, err := s.db.Query(`
 SELECT id, label, href, page_id, parent_id, sort_order, kind, visible
-FROM nav ORDER BY sort_order ASC`)
+FROM nav ORDER BY parent_id ASC, sort_order ASC, label ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -481,6 +479,7 @@ FROM nav ORDER BY sort_order ASC`)
 			return nil, err
 		}
 		n.Visible = vis == 1
+		n.Children = []NavItem{}
 		out = append(out, n)
 	}
 	return out, rows.Err()
@@ -514,7 +513,7 @@ func (s *Store) GetNavTree() ([]NavItem, error) {
 	roots := make([]*NavItem, 0)
 	for i := range flat {
 		item := flat[i]
-		if item.PageID != "" {
+		if item.Kind != NavKindCategory && item.PageID != "" {
 			if _, ok := alive[item.PageID]; !ok {
 				continue
 			}
@@ -538,9 +537,8 @@ func (s *Store) GetNavTree() ([]NavItem, error) {
 	}
 	out := make([]NavItem, 0, len(roots))
 	for _, r := range roots {
-		// Hide empty categories (all children were orphaned).
-		if r.Kind == "category" && len(r.Children) == 0 {
-			continue
+		if r.Children == nil {
+			r.Children = []NavItem{}
 		}
 		out = append(out, *r)
 	}
@@ -548,6 +546,10 @@ func (s *Store) GetNavTree() ([]NavItem, error) {
 }
 
 func (s *Store) ReplaceNav(items []NavItem) ([]NavItem, error) {
+	prepared, err := s.prepareNavTree(items)
+	if err != nil {
+		return nil, err
+	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return nil, err
@@ -556,48 +558,106 @@ func (s *Store) ReplaceNav(items []NavItem) ([]NavItem, error) {
 	if _, err := tx.Exec(`DELETE FROM nav`); err != nil {
 		return nil, err
 	}
-	var insert func(parentID string, list []NavItem, orderStart int) error
-	insert = func(parentID string, list []NavItem, orderStart int) error {
+	var insert func(parentID string, list []NavItem) error
+	insert = func(parentID string, list []NavItem) error {
 		for i, item := range list {
 			if item.ID == "" {
 				item.ID = NewID()
-			}
-			if item.Kind == "" {
-				if len(item.Children) > 0 {
-					item.Kind = "category"
-				} else {
-					item.Kind = "link"
-				}
 			}
 			vis := 0
 			if item.Visible {
 				vis = 1
 			}
-			ord := orderStart + i
-			if item.SortOrder != 0 {
-				ord = item.SortOrder
-			}
 			if _, err := tx.Exec(`
 INSERT INTO nav (id, label, href, page_id, parent_id, sort_order, kind, visible)
 VALUES (?,?,?,?,?,?,?,?)`,
-				item.ID, item.Label, item.Href, item.PageID, parentID, ord, item.Kind, vis); err != nil {
+				item.ID, item.Label, item.Href, item.PageID, parentID, i, item.Kind, vis); err != nil {
 				return err
 			}
-			if len(item.Children) > 0 {
-				if err := insert(item.ID, item.Children, 0); err != nil {
-					return err
-				}
+			if err := insert(item.ID, item.Children); err != nil {
+				return err
 			}
 		}
 		return nil
 	}
-	if err := insert("", items, 0); err != nil {
+	if err := insert("", prepared); err != nil {
 		return nil, err
 	}
 	if err := tx.Commit(); err != nil {
 		return nil, err
 	}
 	return s.GetNavTree()
+}
+
+func (s *Store) prepareNavTree(items []NavItem) ([]NavItem, error) {
+	pages, err := s.ListPages()
+	if err != nil {
+		return nil, err
+	}
+	byID := make(map[string]Page, len(pages))
+	for _, p := range pages {
+		byID[p.ID] = p
+	}
+	seen := map[string]struct{}{}
+	var walk func(list []NavItem, parentKind string) ([]NavItem, error)
+	walk = func(list []NavItem, parentKind string) ([]NavItem, error) {
+		out := make([]NavItem, 0, len(list))
+		for i, item := range list {
+			item.Label = strings.TrimSpace(item.Label)
+			if item.Label == "" {
+				return nil, fmt.Errorf("%w: label required", ErrInvalidNav)
+			}
+			item.Href = strings.TrimSpace(item.Href)
+			item.PageID = strings.TrimSpace(item.PageID)
+			item.Kind = strings.ToLower(strings.TrimSpace(item.Kind))
+			if item.Kind == "" {
+				if len(item.Children) > 0 {
+					item.Kind = NavKindCategory
+				} else {
+					item.Kind = NavKindLink
+				}
+			}
+			if item.Kind != NavKindLink && item.Kind != NavKindCategory {
+				return nil, fmt.Errorf("%w: kind must be %q or %q", ErrInvalidNav, NavKindLink, NavKindCategory)
+			}
+			if parentKind == NavKindCategory && item.Kind != NavKindLink {
+				return nil, fmt.Errorf("%w: dropdown children must be kind=link (one-level menus)", ErrInvalidNav)
+			}
+			if item.Kind == NavKindLink && len(item.Children) > 0 {
+				return nil, fmt.Errorf("%w: kind=link cannot have children", ErrInvalidNav)
+			}
+			if item.ID != "" {
+				if _, ok := seen[item.ID]; ok {
+					return nil, fmt.Errorf("%w: duplicate id %q", ErrInvalidNav, item.ID)
+				}
+				seen[item.ID] = struct{}{}
+			}
+			if item.Kind == NavKindLink {
+				if item.PageID != "" {
+					p, ok := byID[item.PageID]
+					if !ok {
+						return nil, fmt.Errorf("%w: unknown page_id %q", ErrInvalidNav, item.PageID)
+					}
+					if item.Href == "" {
+						item.Href = HrefForPage(p)
+					}
+				}
+			}
+			kids, err := walk(item.Children, item.Kind)
+			if err != nil {
+				return nil, err
+			}
+			if kids == nil {
+				kids = []NavItem{}
+			}
+			item.Children = kids
+			item.ParentID = ""
+			item.SortOrder = i
+			out = append(out, item)
+		}
+		return out, nil
+	}
+	return walk(items, "")
 }
 
 func (s *Store) AddPublishHistory(h PublishHistory) (PublishHistory, error) {

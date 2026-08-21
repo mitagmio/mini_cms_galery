@@ -121,6 +121,7 @@ export default function Dashboard() {
           <span className="muted">{settings?.canonical_base || settings?.domain || 'configure in Settings'}</span>
         </p>
         <div className="quick-links">
+          <Link to="/nav">Menu</Link>
           <Link to="/media">Media library</Link>
           <Link to="/settings">SEO &amp; branding</Link>
           <Link to="/templates">Templates</Link>

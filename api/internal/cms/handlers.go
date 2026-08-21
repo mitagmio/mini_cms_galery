@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,13 +14,12 @@ import (
 )
 
 type Handler struct {
-	Store      *Store
-	FrontDir   string
-	MaxUpload  int64
-	ImportFn   func(force bool) (any, error)
-	GenerateFn func(w http.ResponseWriter, r *http.Request)
-	PreviewFn  func(w http.ResponseWriter, r *http.Request)
-	PublishFn  func(w http.ResponseWriter, r *http.Request)
+	Store           *Store
+	FrontDir        string
+	PreviewBase     string
+	MaxUpload       int64
+	ImportFn        func(force bool) (any, error)
+	GeneratePreview func() error
 }
 
 func (h *Handler) Settings(w http.ResponseWriter, r *http.Request) {
@@ -63,22 +63,22 @@ func settingsForAdmin(st SiteSettings) map[string]any {
 		ogID = st.OGImage
 	}
 	return map[string]any{
-		"site_name":             st.SiteName,
-		"logo_html":             st.LogoHTML,
-		"description":           st.Description,
-		"default_description":   desc,
-		"default_title_suffix":  st.DefaultTitleSuffix,
-		"robots":                st.Robots,
-		"og_image":              st.OGImage,
-		"og_image_media_id":     ogID,
-		"favicon_media_id":      st.FaviconMediaID,
-		"instagram_url":         st.InstagramURL,
-		"behance_url":           st.BehanceURL,
-		"linkedin_url":          st.LinkedInURL,
-		"copyright":             st.Copyright,
-		"canonical_base":        st.CanonicalBase,
-		"mailto_address":        st.MailtoAddress,
-		"updated_at":            st.UpdatedAt,
+		"site_name":            st.SiteName,
+		"logo_html":            st.LogoHTML,
+		"description":          st.Description,
+		"default_description":  desc,
+		"default_title_suffix": st.DefaultTitleSuffix,
+		"robots":               st.Robots,
+		"og_image":             st.OGImage,
+		"og_image_media_id":    ogID,
+		"favicon_media_id":     st.FaviconMediaID,
+		"instagram_url":        st.InstagramURL,
+		"behance_url":          st.BehanceURL,
+		"linkedin_url":         st.LinkedInURL,
+		"copyright":            st.Copyright,
+		"canonical_base":       st.CanonicalBase,
+		"mailto_address":       st.MailtoAddress,
+		"updated_at":           st.UpdatedAt,
 		"social": map[string]string{
 			"instagram": st.InstagramURL,
 			"behance":   st.BehanceURL,
@@ -139,13 +139,46 @@ func (h *Handler) Nav(w http.ResponseWriter, r *http.Request) {
 		}
 		tree, err := h.Store.ReplaceNav(items)
 		if err != nil {
+			if errors.Is(err, ErrInvalidNav) {
+				httpx.WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "nav": tree})
+		// Regenerating the draft site is the first side effect after a nav write
+		// so preview menus match the saved tree immediately (no GitHub publish).
+		generated := false
+		var generateErr string
+		if h.GeneratePreview != nil {
+			if err := h.GeneratePreview(); err != nil {
+				generateErr = err.Error()
+				log.Printf("cms: preview generate after nav update failed: %v", err)
+			} else {
+				generated = true
+			}
+		}
+		resp := map[string]any{
+			"ok":          true,
+			"nav":         tree,
+			"generated":   generated,
+			"preview_url": h.previewURL(),
+		}
+		if generateErr != "" {
+			resp["generate_error"] = generateErr
+		}
+		httpx.WriteJSON(w, http.StatusOK, resp)
 	default:
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (h *Handler) previewURL() string {
+	u := strings.TrimRight(strings.TrimSpace(h.PreviewBase), "/")
+	if u == "" {
+		u = "/preview"
+	}
+	return u + "/"
 }
 
 func parseNavPayload(raw []byte) ([]NavItem, error) {
