@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { createContext, useContext, useMemo, useState } from 'react'
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 
 const LINKS = [
@@ -11,41 +12,61 @@ const LINKS = [
   { to: '/publish', label: 'Publish' },
 ]
 
+const PreviewChromeContext = createContext({ setPreviewChrome: () => {} })
+
+export function usePreviewChrome() {
+  return useContext(PreviewChromeContext)
+}
+
 export default function Layout() {
   const { logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [previewChrome, setPreviewChrome] = useState(null)
+  const isPreview = /^\/preview\/?$/.test(location.pathname)
+  const chromeApi = useMemo(() => ({ setPreviewChrome }), [])
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand-mark">DS</span>
-          <div>
-            <strong>Sheyanova</strong>
-            <span className="muted">Admin</span>
+    <PreviewChromeContext.Provider value={chromeApi}>
+      <div className={`app-shell${isPreview ? ' app-shell--preview' : ''}`}>
+        <header className={`topbar${isPreview ? ' topbar--preview' : ''}`}>
+          <div className="brand">
+            <span className="brand-mark">DS</span>
+            <div>
+              <strong>Sheyanova</strong>
+              <span className="muted">Admin</span>
+            </div>
           </div>
-        </div>
-        <nav className="nav">
-          {LINKS.map((l) => (
-            <NavLink key={l.to} to={l.to} end={l.end} className={({ isActive }) => (isActive ? 'active' : undefined)}>
-              {l.label}
-            </NavLink>
-          ))}
-        </nav>
-        <button
-          type="button"
-          className="secondary"
-          onClick={() => {
-            logout()
-            navigate('/login')
-          }}
-        >
-          Log out
-        </button>
-      </header>
-      <main className="main">
-        <Outlet />
-      </main>
-    </div>
+          <nav className="nav">
+            {LINKS.map((l) => (
+              <NavLink
+                key={l.to}
+                to={l.to}
+                end={l.end}
+                className={({ isActive }) => (isActive ? 'active' : undefined)}
+              >
+                {l.label}
+              </NavLink>
+            ))}
+          </nav>
+          {isPreview && previewChrome ? (
+            <div className="preview-chrome">{previewChrome}</div>
+          ) : null}
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => {
+              logout()
+              navigate('/login')
+            }}
+          >
+            Log out
+          </button>
+        </header>
+        <main className={`main${isPreview ? ' main--preview' : ''}`}>
+          <Outlet />
+        </main>
+      </div>
+    </PreviewChromeContext.Provider>
   )
 }

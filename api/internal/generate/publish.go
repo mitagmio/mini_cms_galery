@@ -25,7 +25,11 @@ func (s *Service) HandleGenerate(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	if err := s.Gen.GenerateSite(); err != nil {
+	prevPrefix := s.Gen.Cfg.PathPrefix
+	s.Gen.Cfg.PathPrefix = strings.TrimRight(s.Gen.Cfg.PreviewBase, "/")
+	err := s.Gen.GenerateSite()
+	s.Gen.Cfg.PathPrefix = prevPrefix
+	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
@@ -50,7 +54,10 @@ func (s *Service) HandlePreviewPage(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "page id required")
 		return
 	}
+	prevPrefix := s.Gen.Cfg.PathPrefix
+	s.Gen.Cfg.PathPrefix = strings.TrimRight(s.Gen.Cfg.PreviewBase, "/")
 	url, err := s.Gen.GeneratePage(id)
+	s.Gen.Cfg.PathPrefix = prevPrefix
 	if err != nil {
 		if err == cms.ErrNotFound {
 			httpx.WriteError(w, http.StatusNotFound, "not found")
@@ -75,11 +82,14 @@ func (s *Service) HandlePublish(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewDecoder(r.Body).Decode(&body)
 
 	prevOut := s.Gen.Cfg.OutDir
+	prevPrefix := s.Gen.Cfg.PathPrefix
 	if s.FrontDir != "" {
 		s.Gen.Cfg.OutDir = s.FrontDir
 	}
+	s.Gen.Cfg.PathPrefix = "" // public GHP URLs are site-root absolute
 	err := s.Gen.GenerateSite()
 	s.Gen.Cfg.OutDir = prevOut
+	s.Gen.Cfg.PathPrefix = prevPrefix
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return

@@ -4,6 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
 	"io"
 	"io/fs"
 	"os"
@@ -18,6 +22,7 @@ type Config struct {
 	UploadDir     string
 	ThemeSrc      string // FRONT_THEME_SRC or path to front/
 	PreviewBase   string // URL prefix for preview, e.g. /preview
+	PathPrefix    string // "" for GHP publish; "/preview" for admin draft (nav/logo links)
 	CanonicalBase string
 }
 
@@ -101,6 +106,141 @@ func (g *Generator) pageURL(p cms.Page) string {
 	return base + "/" + p.Slug + "/"
 }
 
+func (g *Generator) buildFormatData(p cms.Page) template.JS {
+	assets := make([]map[string]any, 0, len(p.Blocks))
+	for _, b := range p.Blocks {
+		if b.Type != cms.BlockGalleryImage {
+			continue
+		}
+		var data map[string]any
+		_ = json.Unmarshal(b.Data, &data)
+		w, h := 1600, 2400
+		if data != nil {
+			mid, _ := data["media_id"].(string)
+			url, _ := data["url"].(string)
+			path := g.mediaFilePath(mid, url)
+			if path != "" {
+				if dw, dh, ok := probeImageSize(path); ok {
+					w, h = dw, dh
+				}
+			}
+		}
+		assets = append(assets, map[string]any{
+			"type":                       "image",
+			"image_dimensions_1600x1200": []int{w, h},
+		})
+	}
+	payload := map[string]any{
+		"page": map[string]any{
+			"type":   "gallery",
+			"layout": "vertical",
+			"title":  nil,
+			"assets": assets,
+		},
+		"theme": map[string]any{
+			"gallery_image_padding":       "Normal",
+			"listing_thumbnail_size":      "Auto",
+			"arrow_style":                 "Dark",
+			"arrow_thickness":             "Medium",
+			"gallery_change_image_speed":  "Normal",
+			"gallery_full_height_mobile":  true,
+			"menu_style":                  "Drop Down",
+			"gallery_caption_typography": map[string]any{
+				"background": "rgba(0,0,0,0.5)",
+			},
+		},
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return template.JS(`{"page":{"type":"gallery","assets":[]},"theme":{"gallery_image_padding":"Normal"}}`)
+	}
+	return template.JS(raw)
+}
+
+func (g *Generator) mediaFilePath(id, url string) string {
+	candidates := []string{}
+	if id != "" {
+		if m, err := g.Store.GetMedia(id); err == nil {
+			candidates = append(candidates,
+				filepath.Join(g.Cfg.UploadDir, m.Filename),
+				filepath.Join(g.Cfg.ThemeSrc, "assets", "cdn", m.Filename),
+			)
+		}
+	}
+	if url != "" {
+		fn := filepath.Base(strings.Split(url, "?")[0])
+		candidates = append(candidates,
+			filepath.Join(g.Cfg.UploadDir, fn),
+			filepath.Join(g.Cfg.ThemeSrc, "assets", "cdn", fn),
+			filepath.Join(g.Cfg.ThemeSrc, strings.TrimPrefix(url, "/")),
+		)
+	}
+	for _, c := range candidates {
+		if c == "" {
+			continue
+		}
+		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+			return c
+		}
+	}
+	return ""
+}
+
+func probeImageSize(path string) (int, int, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, 0, false
+	}
+	defer f.Close()
+	cfg, _, err := image.DecodeConfig(f)
+	if err != nil || cfg.Width < 1 || cfg.Height < 1 {
+		return 0, 0, false
+	}
+	return cfg.Width, cfg.Height, true
+}
+
+// sitePath rewrites internal site links for draft preview (/preview/...) vs publish (/...).
+func (g *Generator) sitePath(href string) string {
+	prefix := strings.TrimRight(g.Cfg.PathPrefix, "/")
+	h := strings.TrimSpace(href)
+	if h == "" || h == "/" {
+		if prefix == "" {
+			return "/"
+		}
+		return prefix + "/"
+	}
+	if !strings.HasPrefix(h, "/") {
+		h = "/" + h
+	}
+	if prefix == "" {
+		// Prefer directory URLs for static hosting (GHP).
+		if !strings.HasSuffix(h, "/") && h != "/" {
+			return h + "/"
+		}
+		return h
+	}
+	out := prefix + h
+	if !strings.HasSuffix(out, "/") {
+		out += "/"
+	}
+	return out
+}
+
+func (g *Generator) prefixNav(items []cms.NavItem) []cms.NavItem {
+	out := make([]cms.NavItem, len(items))
+	for i, it := range items {
+		cp := it
+		if cp.Href != "" {
+			cp.Href = g.sitePath(cp.Href)
+		}
+		if len(it.Children) > 0 {
+			cp.Children = g.prefixNav(it.Children)
+		}
+		out[i] = cp
+	}
+	return out
+}
+
 func (g *Generator) writePage(p cms.Page) error {
 	settings, err := g.Store.GetSettings()
 	if err != nil {
@@ -138,6 +278,17 @@ func (g *Generator) writePage(p cms.Page) error {
 	if p.IsHomepage {
 		active = "before-after"
 	}
+	activeHref := g.sitePath("/" + active)
+
+	name := p.Theme
+	if name == "" {
+		name = cms.ThemeTextContent
+	}
+
+	formatData := template.JS(`{"page":{"type":"gallery","layout":"vertical","title":null,"assets":[]},"theme":{"gallery_image_padding":"Normal","listing_thumbnail_size":"Auto"}}`)
+	if name == cms.ThemePanoramaGallery {
+		formatData = g.buildFormatData(p)
+	}
 
 	view := map[string]any{
 		"Page": p,
@@ -150,17 +301,16 @@ func (g *Generator) writePage(p cms.Page) error {
 			"LinkedInURL":  settings.LinkedInURL,
 			"Copyright":    settings.Copyright,
 		},
-		"Nav":             nav,
+		"Nav":             g.prefixNav(nav),
+		"HomeURL":         g.sitePath("/"),
 		"ActiveSlug":      active,
+		"ActiveHref":      activeHref,
 		"MetaDescription": meta,
 		"CanonicalURL":    canon,
 		"RenderedBlocks":  blocks,
+		"FormatData":      formatData,
 	}
 
-	name := p.Theme
-	if name == "" {
-		name = cms.ThemeTextContent
-	}
 	var buf strings.Builder
 	if err := g.tmpl.ExecuteTemplate(&buf, name, view); err != nil {
 		return err
@@ -246,19 +396,23 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			}
 			uid := fmt.Sprintf("%s-%d", b.ID, i)
 			html = fmt.Sprintf(`
-<div class="_4ORMAT_content_page_row _4ormat_sort_item format_comparison_slider" data-content-module-category="comparison-slider">
-<div id="comparison_slider%s" data-editable-type="comparison-slider">
+<div class="_4ORMAT_content_page_row _4ormat_sort_item _4ORMAT_module_comparison_slider_01 format_comparison_slider" data-content-module-category="comparison-slider" style="--slider-default-position:50;--slider-color:#000;--slider-icon-color:#fff;--slider-line-thickness:2;--slider-size:48;--slider-icon-width:9px;--slider-icon-height:14px;--slider-icon-margin:6px;--slider-icon-shape:50%%;">
+<div id="comparison_slider%s" data-dom-id="comparison_slider" data-editable-type="comparison-slider" data-using-default-images="false">
 <div class="%s">
 <div class="comparison_slider__slider_wrap">
 <div class="comparison_slider__image_wrap">
 <img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--2" src="%s"/>
 <img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--1" src="%s"/>
 </div>
-<input class="comparison_slider__slider_range" max="1" min="0" name="slider" step="any" type="range" value="0.5"/>
+<input class="comparison_slider__slider_range" max="1" min="0" name="slider" step="any" type="range" value="0.5" style="--slider-default-position:50"/>
 <div class="comparison_slider__slider_button_container">
-<div class="comparison_slider__slider_button comparison_slider__slider_button--chevrons"></div>
+<div class="comparison_slider__slider_button comparison_slider__slider_button--chevrons">
+<svg class="comparison_slider__slider_svg comparison_slider__slider_svg--left" viewBox="0 0 16 30"><path d="M15.16 30a.827.827 0 0 1-.584-.241L.256 15.615a.867.867 0 0 1 0-1.232L14.577.241a.828.828 0 0 1 1.188.02.87.87 0 0 1-.02 1.212L2.047 15l13.697 13.526a.87.87 0 0 1 .02 1.212.831.831 0 0 1-.604.262z"></path></svg>
+<svg class="comparison_slider__slider_svg comparison_slider__slider_svg--right" viewBox="0 0 16 30"><path d="M.84 0c.21 0 .42.08.584.241l14.32 14.144a.867.867 0 0 1 0 1.232L1.423 29.759a.828.828 0 0 1-1.188-.02.87.87 0 0 1 .02-1.212L13.953 15 .256 1.474A.87.87 0 0 1 .236.262.831.831 0 0 1 .84 0z"></path></svg>
 </div>
 </div>
+</div>
+<div class="comparison_slider__copy_wrap"></div>
 </div>
 </div>
 </div>`, uid, cls, template.HTMLEscapeString(after), template.HTMLEscapeString(before))
@@ -269,9 +423,14 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			alt, _ := data["alt"].(string)
 			src, _ := resolve(mid, url)
 			html = fmt.Sprintf(`
-<div class="asset image" data-asset-type="image">
-<img src="%s" alt="%s" loading="lazy"/>
-</div>`, template.HTMLEscapeString(src), template.HTMLEscapeString(alt))
+<div class="asset image">
+<div class="wrap">
+<div class="img">
+<span class="midd hide-for-large"></span>
+<img alt="%s" class="lazyload" data-pin-nopin="true" loading="eager" src="%s" data-src="%s"/>
+</div>
+</div>
+</div>`, template.HTMLEscapeString(alt), template.HTMLEscapeString(src), template.HTMLEscapeString(src))
 
 		case cms.BlockRichText:
 			raw, _ := data["html"].(string)

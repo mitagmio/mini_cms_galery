@@ -81,6 +81,7 @@ func main() {
 		UploadDir:     cfg.UploadDir,
 		ThemeSrc:      themeSrc,
 		PreviewBase:   cfg.PreviewBaseURL,
+		PathPrefix:    strings.TrimRight(cfg.PreviewBaseURL, "/"),
 		CanonicalBase: cfg.CanonicalBase,
 	})
 	if err != nil {

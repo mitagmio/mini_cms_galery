@@ -1,6 +1,6 @@
 {{define "panorama_gallery"}}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="gallery win">
 <head>
 <meta charset="utf-8"/>
 <meta content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width" name="viewport"/>
@@ -12,8 +12,8 @@
 <link href="/static/theme_api/v1/hosted_fonts-58e499298cb6db37c90c2bd6bd2ad287c8423ad12d9c2cc346a2af9afc8b7fd4.css" media="screen" rel="stylesheet"/>
 <link href="/static/theme_api/vendor/webtype_fonts.min-a27384810945198dd373502796bfbada62cc8409c49831a8778ac894e78f7749.css" media="screen" rel="stylesheet"/>
 <link href="/static/theme_api/v1/protected_images-6cc002aad772e14af53bbbb966d0611491b39e25fc8fba42e94598f98d535828.css" media="screen" rel="stylesheet"/>
-<link href="/assets/theme/stylesheet.css?v=3" media="screen" rel="stylesheet"/>
-<link href="/assets/theme/gallery-harden.css" media="screen" rel="stylesheet"/>
+<link href="/assets/theme/stylesheet.css?v=5" media="screen" rel="stylesheet"/>
+<link href="/assets/theme/gallery-harden.css?v=4" media="screen" rel="stylesheet"/>
 <style>#content{opacity:1;}</style>
 </head>
 <body class="gallery gallery_page">
@@ -21,14 +21,15 @@
 <div class="theme_header static clearfix" id="themeHeader">
 <div class="padding-div">
 <div class="theme_logo">
-<h1 class="logo theme_logo"><a href="/">{{.Settings.LogoHTML}}</a></h1>
+<h1 class="logo theme_logo"><a href="{{.HomeURL}}">{{.Settings.LogoHTML}}</a></h1>
 </div>
 {{template "nav" .}}
 </div>
 </div>
 <div id="content">
 <div class="gallery_content">
-<div class="assets">
+<div class="assets" id="assets">
+<div id="assets_wrap">
 {{- range .RenderedBlocks }}
 {{.HTML}}
 {{- end }}
@@ -36,12 +37,32 @@
 </div>
 </div>
 </div>
+</div>
+<script>
+window._4ORMAT_DATA = {{.FormatData}};
+</script>
 <script src="/assets/theme/panorama/javascripts/jquery.js"></script>
-<script src="/assets/theme/panorama/javascripts/jquery.mousewheel.js"></script>
+<script src="/assets/theme/panorama/javascripts/jquery.mousewheel.js?v=passive1"></script>
 <script src="/assets/theme/panorama/javascripts/jquery.jscrollpane.js"></script>
 <script src="/assets/theme/panorama/javascripts/theme.js"></script>
+<script src="/assets/theme/panorama/javascripts/gallery-wheel.js?v=1"></script>
 <script>
-(function(){function reveal(){var c=document.getElementById('content');if(c){c.style.opacity='1';c.style.visibility='visible';}document.querySelectorAll('.asset.image').forEach(function(el){el.classList.remove('loading');el.style.opacity='1';});document.querySelectorAll('.asset img').forEach(function(img){img.style.opacity='1';});}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',reveal);else reveal();window.addEventListener('load',reveal);})();
+(function(){
+  /* Format only enables wheel→horizontal when html has class "win". Force it. */
+  document.documentElement.classList.add('win');
+  function reveal(){
+    var c=document.getElementById('content');
+    if(c){c.style.opacity='1';c.style.visibility='visible';}
+    document.querySelectorAll('.asset.image').forEach(function(el){el.classList.remove('loading');el.style.opacity='1';});
+    document.querySelectorAll('.asset img').forEach(function(img){img.style.opacity='1';});
+    if(window.jQuery){
+      try{window.jQuery(window).trigger('resize');}catch(e){}
+    }
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',reveal);
+  else reveal();
+  window.addEventListener('load',reveal);
+})();
 </script>
 </body>
 </html>
