@@ -41,6 +41,11 @@ func main() {
 	if err := store.BootSeed(); err != nil {
 		log.Fatalf("seed: %v", err)
 	}
+	if n, err := store.CleanupOrphanNav(); err != nil {
+		log.Printf("cms: orphan nav cleanup: %v", err)
+	} else if n > 0 {
+		log.Printf("cms: removed %d orphan nav item(s)", n)
+	}
 
 	themeSrc := cfg.FrontThemeSrc
 	if themeSrc == "" {

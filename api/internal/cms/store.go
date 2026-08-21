@@ -212,7 +212,13 @@ func (s *Store) SyncNavForPage(p Page) error {
 }
 
 func (s *Store) DeletePage(id string) error {
-	res, err := s.db.Exec(`DELETE FROM pages WHERE id = ?`, id)
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.Exec(`DELETE FROM pages WHERE id = ?`, id)
 	if err != nil {
 		return err
 	}
@@ -220,7 +226,65 @@ func (s *Store) DeletePage(id string) error {
 	if n == 0 {
 		return ErrNotFound
 	}
-	return nil
+	// Drop blocks for the page (no FK cascade).
+	if _, err := tx.Exec(`DELETE FROM blocks WHERE page_id = ?`, id); err != nil {
+		return err
+	}
+	// Drop menu entries linked to this page.
+	if _, err := tx.Exec(`DELETE FROM nav WHERE page_id = ? AND page_id != ''`, id); err != nil {
+		return err
+	}
+	if err := pruneEmptyNavCategoriesTx(tx); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// CleanupOrphanNav removes nav rows whose page_id no longer exists, then
+// drops empty category parents. Safe to call on startup.
+func (s *Store) CleanupOrphanNav() (int, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	res, err := tx.Exec(`
+DELETE FROM nav
+WHERE page_id != ''
+  AND page_id NOT IN (SELECT id FROM pages)`)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	if err := pruneEmptyNavCategoriesTx(tx); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
+	return int(n), nil
+}
+
+// pruneEmptyNavCategoriesTx deletes category rows that have no children left.
+func pruneEmptyNavCategoriesTx(tx *sql.Tx) error {
+	for {
+		res, err := tx.Exec(`
+DELETE FROM nav
+WHERE kind = 'category'
+  AND id NOT IN (
+    SELECT parent_id FROM (
+      SELECT DISTINCT parent_id AS parent_id FROM nav WHERE parent_id != ''
+    )
+  )`)
+		if err != nil {
+			return err
+		}
+		n, _ := res.RowsAffected()
+		if n == 0 {
+			return nil
+		}
+	}
 }
 
 func (s *Store) ListBlocks(pageID string) ([]Block, error) {
@@ -427,16 +491,43 @@ func (s *Store) GetNavTree() ([]NavItem, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Defensive: skip links whose page was deleted but nav row remains.
+	alive := map[string]struct{}{}
+	rows, err := s.db.Query(`SELECT id FROM pages`)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		alive[id] = struct{}{}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	byID := map[string]*NavItem{}
 	roots := make([]*NavItem, 0)
 	for i := range flat {
 		item := flat[i]
+		if item.PageID != "" {
+			if _, ok := alive[item.PageID]; !ok {
+				continue
+			}
+		}
 		item.Children = []NavItem{}
 		cp := item
 		byID[cp.ID] = &cp
 	}
 	for i := range flat {
-		item := byID[flat[i].ID]
+		item, ok := byID[flat[i].ID]
+		if !ok {
+			continue
+		}
 		if item.ParentID != "" {
 			if parent, ok := byID[item.ParentID]; ok {
 				parent.Children = append(parent.Children, *item)
@@ -447,6 +538,10 @@ func (s *Store) GetNavTree() ([]NavItem, error) {
 	}
 	out := make([]NavItem, 0, len(roots))
 	for _, r := range roots {
+		// Hide empty categories (all children were orphaned).
+		if r.Kind == "category" && len(r.Children) == 0 {
+			continue
+		}
 		out = append(out, *r)
 	}
 	return out, nil
