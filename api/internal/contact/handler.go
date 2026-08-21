@@ -79,8 +79,8 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "Invalid request.")
 		return
 	}
-	if isHoneypot(req) {
-		log.Printf("contact: honeypot ip=%s", ip)
+	if field := honeypotField(req); field != "" {
+		log.Printf("contact: honeypot ip=%s field=%s", ip, field)
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Thank you."})
 		return
 	}
@@ -149,7 +149,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusServiceUnavailable, "Could not send your message. Mail is not configured.")
 			return
 		}
-		httpx.WriteError(w, http.StatusBadGateway, "Could not send your message. Please try again later.")
+		httpx.WriteError(w, http.StatusBadGateway, publicSendError(err))
 		return
 	}
 	log.Printf("contact: sent ip=%s to=%s", ip, to)
@@ -189,9 +189,31 @@ func decodeSubmit(r *http.Request) (submitReq, error) {
 }
 
 func isHoneypot(req submitReq) bool {
-	return strings.TrimSpace(req.Company) != "" ||
-		strings.TrimSpace(req.Website) != "" ||
-		strings.TrimSpace(req.Subject) != ""
+	return honeypotField(req) != ""
+}
+
+// honeypotField ignores "company": browsers and password managers autofill it
+// even when the field is hidden, which fake-succeeded real contact submissions.
+func honeypotField(req submitReq) string {
+	if strings.TrimSpace(req.Website) != "" {
+		return "website"
+	}
+	if strings.TrimSpace(req.Subject) != "" {
+		return "subject"
+	}
+	return ""
+}
+
+func publicSendError(err error) string {
+	msg := strings.ToLower(err.Error())
+	switch {
+	case strings.Contains(msg, "smtp auth"), strings.Contains(msg, "534"), strings.Contains(msg, "535"), strings.Contains(msg, "application-specific"):
+		return "Could not send your message. Mail login failed. The site owner must set a Gmail app password."
+	case strings.Contains(msg, "mail from"):
+		return "Could not send your message. Mail server rejected the sender address."
+	default:
+		return "Could not send your message. Please try again later."
+	}
 }
 
 func (h *Handler) checkDwell(req submitReq) error {
@@ -333,12 +355,16 @@ func verifyTurnstile(secret, token, ip string) error {
 	}
 	defer resp.Body.Close()
 	var out struct {
-		Success bool `json:"success"`
+		Success    bool     `json:"success"`
+		ErrorCodes []string `json:"error-codes"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return err
 	}
 	if !out.Success {
+		if len(out.ErrorCodes) > 0 {
+			return errors.New("turnstile failed: " + strings.Join(out.ErrorCodes, ","))
+		}
 		return errors.New("turnstile failed")
 	}
 	return nil

@@ -70,14 +70,22 @@ func (s ChainSender) Send(m Message) error {
 	return nil
 }
 
+// envelopeFrom is the SMTP MAIL FROM / header From. Gmail (and most providers)
+// reject a From address that is not the authenticated user unless a Send-as
+// alias is verified, so SMTP_USER wins when it disagrees with SMTP_FROM.
 func envelopeFrom(cfg SMTPConfig, m Message) string {
-	if cfg.From != "" {
-		return cfg.From
+	user := strings.TrimSpace(cfg.User)
+	from := strings.TrimSpace(cfg.From)
+	if user != "" && from != "" && !strings.EqualFold(user, from) {
+		return user
 	}
-	if m.From != "" {
-		return m.From
+	if from != "" {
+		return from
 	}
-	return cfg.User
+	if strings.TrimSpace(m.From) != "" {
+		return strings.TrimSpace(m.From)
+	}
+	return user
 }
 
 func sendSMTP(cfg SMTPConfig, m Message) error {

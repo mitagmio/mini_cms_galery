@@ -124,13 +124,27 @@ func TestSubmitHoneypotPretendsOK(t *testing.T) {
 	fs := &fakeSender{}
 	h, _ := testHandler(t, fs)
 	p := validPayload()
-	p["company"] = "http://spam.test"
+	p["website"] = "http://spam.test"
 	rec := postJSON(h.Submit, "https://sheyanova.art", p, nil)
 	if rec.Code != 200 {
 		t.Fatalf("code=%d", rec.Code)
 	}
 	if fs.n != 0 {
 		t.Fatal("honeypot must not send")
+	}
+}
+
+func TestSubmitCompanyAutofillStillSends(t *testing.T) {
+	fs := &fakeSender{}
+	h, _ := testHandler(t, fs)
+	p := validPayload()
+	p["company"] = "Acme Inc"
+	rec := postJSON(h.Submit, "https://sheyanova.art", p, nil)
+	if rec.Code != 200 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if fs.n != 1 {
+		t.Fatal("autofilled company must not be treated as honeypot")
 	}
 }
 
@@ -209,6 +223,29 @@ func TestSubmitSendError(t *testing.T) {
 	rec := postJSON(h.Submit, "https://sheyanova.art", validPayload(), nil)
 	if rec.Code != 502 {
 		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSubmitAuthErrorSurfaced(t *testing.T) {
+	fs := &fakeSender{err: errors.New("smtp auth: 534 5.7.9 Application-specific password required")}
+	h, _ := testHandler(t, fs)
+	rec := postJSON(h.Submit, "https://sheyanova.art", validPayload(), nil)
+	if rec.Code != 502 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "app password") {
+		t.Fatalf("body=%s", rec.Body.String())
+	}
+}
+
+func TestEnvelopeFromUsesSMTPUserWhenAliasDiffers(t *testing.T) {
+	got := envelopeFrom(SMTPConfig{User: "acct@gmail.com", From: "info@example.com"}, Message{})
+	if got != "acct@gmail.com" {
+		t.Fatalf("from=%s", got)
+	}
+	same := envelopeFrom(SMTPConfig{User: "info@example.com", From: "info@example.com"}, Message{})
+	if same != "info@example.com" {
+		t.Fatalf("same=%s", same)
 	}
 }
 

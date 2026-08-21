@@ -141,7 +141,12 @@ func main() {
 	contactH := contact.NewHandler(store, cfg.CORSOrigins, contact.ChainSender{SMTP: smtpCfg}, cfg.TurnstileSecret)
 	mux.HandleFunc("/api/contact", contactH.Submit)
 	if smtpCfg.Configured() {
-		log.Printf("contact: SMTP host=%s port=%s from=%s", smtpCfg.Host, smtpCfg.Port, smtpCfg.From)
+		usedFrom := smtpCfg.From
+		if smtpCfg.User != "" && smtpCfg.From != "" && !strings.EqualFold(smtpCfg.User, smtpCfg.From) {
+			usedFrom = smtpCfg.User
+			log.Printf("contact: SMTP_FROM differs from SMTP_USER; sending as SMTP_USER (Gmail rejects unverified aliases)")
+		}
+		log.Printf("contact: SMTP host=%s port=%s from=%s", smtpCfg.Host, smtpCfg.Port, usedFrom)
 	} else {
 		log.Printf("contact: SMTP_HOST unset — set SMTP_HOST/SMTP_PORT/SMTP_USER/SMTP_PASS/SMTP_FROM to deliver mail")
 	}

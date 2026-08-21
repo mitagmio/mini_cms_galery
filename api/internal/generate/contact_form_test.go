@@ -12,7 +12,7 @@ func TestRenderContactFormPostsToPublicAPI(t *testing.T) {
 	if !containsAll(html,
 		`action="https://api.sheyanova.art/api/contact"`,
 		`id="contact_form_abc"`,
-		`name="company"`,
+		`name="website"`,
 		`name="_t"`,
 		`fetch(action`,
 		`Thanks!`,

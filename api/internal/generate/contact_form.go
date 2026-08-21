@@ -27,6 +27,8 @@ var contactFormTmpl = template.Must(template.New("contact_form").Parse(`
 .contact_form__status.is-ok{color:#2a7a3a}
 .contact_form__status.is-err{color:#c00}
 .contact_form.is-busy input[type=submit]{opacity:.6;pointer-events:none}
+.contact_form{position:relative}
+.contact_form_hp{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
 </style>
 <form id="{{.FormID}}" class="email_form contact_form" method="post" action="{{.Action}}" novalidate>
 <div class="error_messages contact_form__status" role="status" aria-live="polite"></div>
@@ -43,12 +45,12 @@ var contactFormTmpl = template.Must(template.New("contact_form").Parse(`
 <label>{{.MessageLabel}}<textarea class="_4ORMAT_module_contact_input" name="message" rows="6" required maxlength="8000"></textarea></label>
 </div>
 </div>
-<p class="contact_form_subject" aria-hidden="true">
-<label>Company<input type="text" name="company" tabindex="-1" autocomplete="off"/></label>
-</p>
+<div class="contact_form_hp" aria-hidden="true">
+<label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"/></label>
+</div>
 <input type="hidden" name="_t" value=""/>
 <fieldset class="submit _4ORMAT_module_submit_left">
-<input class="btn primary _4ORMAT_module_contact_btn _4ORMAT_module_contact_input" name="submit" type="submit" value="{{.SubmitLabel}}"/>
+<input class="btn primary _4ORMAT_module_contact_btn _4ORMAT_module_contact_input" type="submit" value="{{.SubmitLabel}}"/>
 </fieldset>
 {{- if .TurnstileSiteKey }}
 <div class="cf-turnstile" data-sitekey="{{.TurnstileSiteKey}}" data-size="invisible"></div>
@@ -71,21 +73,19 @@ var contactFormTmpl = template.Must(template.New("contact_form").Parse(`
     status.className = 'error_messages contact_form__status' + (kind ? ' is-' + kind : '');
     status.textContent = text || '';
   }
-  form.addEventListener('submit', function(ev) {
-    ev.preventDefault();
-    if (form.classList.contains('is-busy')) return;
-    var name = (form.name && form.name.value || '').trim();
-    var email = (form.email && form.email.value || '').trim();
-    var message = (form.message && form.message.value || '').trim();
-    var company = (form.company && form.company.value || '');
-    if (!name) { setStatus('err', 'Please enter your name.'); return; }
-    if (!email) { setStatus('err', 'Please enter a valid email address.'); return; }
-    if (!message) { setStatus('err', 'Please enter a message.'); return; }
-    form.classList.add('is-busy');
-    setStatus('', 'Sending…');
-    var payload = {name: name, email: email, message: message, company: company, _t: loaded};
+  function val(n) {
+    var el = form.querySelector('[name="'+n+'"]');
+    return (el && el.value || '').trim();
+  }
+  function turnstileToken() {
     var ts = form.querySelector('[name="cf-turnstile-response"]');
-    if (ts && ts.value) payload['cf-turnstile-response'] = ts.value;
+    return (ts && ts.value) ? ts.value : '';
+  }
+  function send(token) {
+    var payload = {name: val('name'), email: val('email'), message: val('message'), _t: loaded};
+    var website = val('website');
+    if (website) payload.website = website;
+    if (token) payload['cf-turnstile-response'] = token;
     fetch(action, {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
@@ -108,6 +108,34 @@ var contactFormTmpl = template.Must(template.New("contact_form").Parse(`
     }).then(function() {
       form.classList.remove('is-busy');
     });
+  }
+  form.addEventListener('submit', function(ev) {
+    ev.preventDefault();
+    if (form.classList.contains('is-busy')) return;
+    if (!val('name')) { setStatus('err', 'Please enter your name.'); return; }
+    if (!val('email')) { setStatus('err', 'Please enter a valid email address.'); return; }
+    if (!val('message')) { setStatus('err', 'Please enter a message.'); return; }
+    form.classList.add('is-busy');
+    setStatus('', 'Sending…');
+    var token = turnstileToken();
+    var widget = form.querySelector('.cf-turnstile');
+    if (!token && widget && window.turnstile) {
+      var done = false;
+      var finish = function(tok) {
+        if (done) return;
+        done = true;
+        send(tok || turnstileToken());
+      };
+      try {
+        window.turnstile.execute(widget, { callback: finish });
+      } catch (e) {
+        finish(token);
+        return;
+      }
+      setTimeout(function() { finish(turnstileToken()); }, 8000);
+      return;
+    }
+    send(token);
   });
 })();
 </script>
