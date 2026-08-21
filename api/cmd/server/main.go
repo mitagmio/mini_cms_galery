@@ -122,6 +122,8 @@ func main() {
 	mux.Handle("/api/admin/publish/history", guard.Middleware(http.HandlerFunc(cmsH.PublishHistory)))
 	mux.Handle("/api/admin/seed", guard.Middleware(http.HandlerFunc(cmsH.Seed)))
 	mux.Handle("/api/admin/import-front", guard.Middleware(http.HandlerFunc(cmsH.ImportFront)))
+	mux.Handle("/api/admin/templates", guard.Middleware(http.HandlerFunc(cmsH.Templates)))
+	mux.Handle("/api/admin/templates/", guard.Middleware(http.HandlerFunc(cmsH.TemplateByID)))
 
 	mux.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir(cfg.UploadDir))))
 	mux.Handle("/preview/", http.StripPrefix("/preview/", http.FileServer(http.Dir(cfg.PreviewDir))))

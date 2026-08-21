@@ -42,3 +42,17 @@ func ValidBlockType(t string) bool {
 		return false
 	}
 }
+
+// DefaultAllowedBlocks returns the block types that fit a theme engine.
+func DefaultAllowedBlocks(theme string) []string {
+	switch theme {
+	case ThemeBAContent:
+		return []string{BlockComparisonSlider}
+	case ThemePanoramaGallery:
+		return []string{BlockGalleryImage}
+	case ThemeTextContent:
+		return []string{BlockRichText, BlockContactForm}
+	default:
+		return []string{}
+	}
+}

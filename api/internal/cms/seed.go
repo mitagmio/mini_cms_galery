@@ -20,6 +20,9 @@ func (s *Store) BootSeed() error {
 		}
 		log.Printf("cms: seeded default pages/nav/settings")
 	}
+	if err := s.EnsureSystemTemplates(); err != nil {
+		return err
+	}
 	nMedia, err := s.CountMedia()
 	if err != nil {
 		return err

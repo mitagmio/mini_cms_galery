@@ -91,6 +91,13 @@ export const admin = {
     putBlocks: (id, blocks) =>
       api(`/api/admin/pages/${id}/blocks`, { method: 'PUT', body: { blocks } }),
   },
+  templates: {
+    list: () => api('/api/admin/templates'),
+    get: (id) => api(`/api/admin/templates/${id}`),
+    create: (body) => api('/api/admin/templates', { method: 'POST', body }),
+    patch: (id, body) => api(`/api/admin/templates/${id}`, { method: 'PATCH', body }),
+    put: (id, body) => api(`/api/admin/templates/${id}`, { method: 'PUT', body }),
+  },
   media: {
     list: (params = {}) => {
       const q = new URLSearchParams()

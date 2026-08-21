@@ -120,9 +120,23 @@ CREATE TABLE IF NOT EXISTS publish_history (
   detail_json TEXT NOT NULL DEFAULT '{}'
 );
 
+CREATE TABLE IF NOT EXISTS templates (
+  id TEXT PRIMARY KEY,
+  theme TEXT NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  allowed_blocks_json TEXT NOT NULL DEFAULT '[]',
+  default_blocks_json TEXT NOT NULL DEFAULT '[]',
+  is_system INTEGER NOT NULL DEFAULT 0,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_blocks_page ON blocks(page_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_nav_sort ON nav(sort_order);
 CREATE INDEX IF NOT EXISTS idx_pages_sort ON pages(sort_order);
+CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 `
 	if _, err := s.db.Exec(schema); err != nil {
 		return fmt.Errorf("migrate: %w", err)

@@ -41,6 +41,17 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 - GHP: `github_repo`, `github_branch` (default `main`)
 - Contact: `mailto_address` (v1 form target)
 
+### `templates` (page blueprints)
+| Field | Notes |
+|-------|--------|
+| `id` | system = theme key (`ba_content`…); custom = generated id |
+| `theme` / `key` | generate engine only: `ba_content` \| `panorama_gallery` \| `text_content` |
+| `name` / `label`, `description` | admin display |
+| `allowed_blocks` | JSON string array of block types |
+| `default_blocks` | JSON array of `{type, data}` starters |
+| `is_system` | built-ins; theme/id locked, metadata editable |
+| `sort_order`, `created_at`, `updated_at` | |
+
 ### `pages`
 | Field | Notes |
 |-------|--------|
@@ -102,6 +113,9 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | POST | `/api/admin/publish` | yes | generate → `front/` → git push; write history |
 | GET | `/api/admin/publish/history` | yes | |
 | POST | `/api/admin/seed` | yes | one-shot import from `front/` (MVP bootstrap) |
+| GET | `/api/admin/templates` | yes | list page blueprints (system + custom) |
+| POST | `/api/admin/templates` | yes | create custom blueprint (`theme` = generate engine) |
+| GET/PATCH/PUT | `/api/admin/templates/{id}` | yes | read / update metadata + default blocks |
 
 **Remove:** `GET /api/sliders*`, old `/api/admin/photos`, `/api/admin/sliders`, slider-only preview.
 

@@ -421,6 +421,23 @@ a.button.secondary, .button.secondary {
   flex-direction: column;
   gap: 0.5rem;
 }
+.template-card .row-actions { margin-top: auto; padding-top: 0.5rem; }
+.template-card .badge + .badge { margin-left: 0.35rem; }
+.muted.small { font-size: 0.8rem; }
+.block-checkboxes {
+  border: 1px solid var(--line);
+  padding: 0.75rem 1rem;
+  margin: 0;
+}
+.block-checkboxes legend {
+  padding: 0 0.35rem;
+  font-size: 0.85rem;
+}
+.code-area {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
 
 .preview-page { max-width: none; }
 .preview-frame-wrap {

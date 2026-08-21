@@ -139,3 +139,41 @@ type PublishHistory struct {
 	Status    string          `json:"status"`
 	Detail    json.RawMessage `json:"detail,omitempty"`
 }
+
+// Template is a reusable page blueprint. theme/key must be a generate engine
+// (ba_content | panorama_gallery | text_content). System rows use id == theme.
+type Template struct {
+	ID             string          `json:"id"`
+	Theme          string          `json:"theme"`
+	Key            string          `json:"key,omitempty"` // alias of theme
+	Name           string          `json:"name"`
+	Label          string          `json:"label,omitempty"` // alias of name
+	Description    string          `json:"description"`
+	AllowedBlocks  []string        `json:"allowed_blocks"`
+	DefaultBlocks  json.RawMessage `json:"default_blocks"`
+	IsSystem       bool            `json:"is_system"`
+	SortOrder      int             `json:"sort_order"`
+	CreatedAt      string          `json:"created_at"`
+	UpdatedAt      string          `json:"updated_at"`
+}
+
+func (t *Template) NormalizeAliases() {
+	if t.Theme == "" && t.Key != "" {
+		t.Theme = t.Key
+	}
+	if t.Key == "" && t.Theme != "" {
+		t.Key = t.Theme
+	}
+	if t.Name == "" && t.Label != "" {
+		t.Name = t.Label
+	}
+	if t.Label == "" && t.Name != "" {
+		t.Label = t.Name
+	}
+	if t.AllowedBlocks == nil {
+		t.AllowedBlocks = []string{}
+	}
+	if len(t.DefaultBlocks) == 0 {
+		t.DefaultBlocks = json.RawMessage(`[]`)
+	}
+}

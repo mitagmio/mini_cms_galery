@@ -528,3 +528,87 @@ func (h *Handler) ImportFront(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "import": out})
 }
+
+func (h *Handler) Templates(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		list, err := h.Store.ListTemplates()
+		if err != nil {
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "templates": list})
+	case http.MethodPost:
+		var body Template
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, "bad json")
+			return
+		}
+		body.NormalizeAliases()
+		body.IsSystem = false // clients cannot mint system templates
+		out, err := h.Store.CreateTemplate(body)
+		if err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		httpx.WriteJSON(w, http.StatusCreated, map[string]any{"ok": true, "template": out})
+	default:
+		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
+
+func (h *Handler) TemplateByID(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/admin/templates/")
+	id = strings.Trim(id, "/")
+	if id == "" {
+		h.Templates(w, r)
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		t, err := h.Store.GetTemplate(id)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				httpx.WriteError(w, http.StatusNotFound, "not found")
+				return
+			}
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t})
+	case http.MethodPatch:
+		var patch map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, "bad json")
+			return
+		}
+		t, err := h.Store.PatchTemplate(id, patch)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				httpx.WriteError(w, http.StatusNotFound, "not found")
+				return
+			}
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t})
+	case http.MethodPut:
+		var body Template
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, "bad json")
+			return
+		}
+		t, err := h.Store.PutTemplate(id, body)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				httpx.WriteError(w, http.StatusNotFound, "not found")
+				return
+			}
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t})
+	default:
+		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+	}
+}
