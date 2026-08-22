@@ -1,0 +1,9 @@
+{{define "rate_form_editorial"}}
+<form id="rates_form_editorial" class="rate-form email_form contact_form" method="post" action="{{.Action}}" novalidate data-rate-form="rates_editorial">
+{{template "rate_hidden" .}}
+{{template "rate_title" .}}
+{{template "rate_status" .}}
+{{template "rate_steps_fashion" .}}
+{{template "rate_footer" .}}
+</form>
+{{end}}

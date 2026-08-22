@@ -1,0 +1,332 @@
+{{define "rate_hidden"}}
+<input type="hidden" name="form" value="{{.FormValue}}"/>
+<div class="contact_form_hp rate-hp" aria-hidden="true">
+<label>Website<input type="text" name="website" tabindex="-1" autocomplete="off"/></label>
+</div>
+<input type="hidden" name="_t" value=""/>
+{{end}}
+
+{{define "rate_title"}}
+<p class="rate-form-caption" id="rate-title-{{.Key}}">{{.Caption}}</p>
+<h2 class="rate-form-heading">PROJECT DETAILS</h2>
+{{end}}
+
+{{define "rate_status"}}
+<div class="error_messages contact_form__status rate-form__status" role="status" aria-live="polite"></div>
+{{end}}
+
+{{define "rate_imagelink"}}
+<label class="rate-field">Share link with images
+<input class="_4ORMAT_module_contact_input" name="Imagelink" type="text" required maxlength="2000" placeholder="GoogleDrive, DropBox or other" autocomplete="off"/>
+</label>
+{{end}}
+
+{{define "rate_total"}}
+<label class="rate-field">Total
+<input class="_4ORMAT_module_contact_input" name="Total" type="number" required min="1" step="1" inputmode="numeric"/>
+</label>
+{{end}}
+
+{{define "rate_delivery"}}
+<label class="rate-field">Final delivery
+<span class="rate-date" lang="en">
+<span class="rate-date__row">
+<input class="_4ORMAT_module_contact_input rate-date__input" name="Final_delivery" type="text" required maxlength="10" placeholder="YYYY-MM-DD" inputmode="numeric" autocomplete="off" spellcheck="false" data-rate-date data-rate-min="{{.Today}}" aria-describedby="rate-date-hint-{{.Key}}"/>
+<button type="button" class="rate-date__btn" data-rate-date-toggle aria-label="Open calendar">Calendar</button>
+</span>
+</span>
+<span class="rate-hint" id="rate-date-hint-{{.Key}}">Type YYYY-MM-DD or use the English calendar. Past dates are not allowed.</span>
+</label>
+{{end}}
+
+{{define "rate_retouch"}}
+<fieldset class="rate-fieldset rate-retouch-level">
+<legend>Retouch level</legend>
+<p class="rate-hint">It will give us the idea of what you prefer, and will not affect the final cost.</p>
+<div class="rate-retouch-grid">
+<label class="rate-retouch"><input type="radio" name="Retouch_level" value="1" required/>
+<span class="rate-retouch__frame"><img src="/assets/theme/rates/retouch-level-1.gif" alt="Retouch level 1"/></span>
+<span class="rate-retouch__text">1. Light skin retouching that doesn't affect the shadow and age changes to leave your photo as natural as possible</span>
+</label>
+<label class="rate-retouch"><input type="radio" name="Retouch_level" value="2"/>
+<span class="rate-retouch__frame"><img src="/assets/theme/rates/retouch-level-2.gif" alt="Retouch level 2"/></span>
+<span class="rate-retouch__text">2. Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics and texture kept intact</span>
+</label>
+<label class="rate-retouch"><input type="radio" name="Retouch_level" value="3"/>
+<span class="rate-retouch__frame"><img src="/assets/theme/rates/retouch-level-3.gif" alt="Retouch level 3"/></span>
+<span class="rate-retouch__text">3. Focus is on the skin retouching: removing all imperfections, smoothing wrinkles, yet saving natural texture</span>
+</label>
+<label class="rate-retouch"><input type="radio" name="Retouch_level" value="4"/>
+<span class="rate-retouch__frame"><img src="/assets/theme/rates/retouch-level-4.gif" alt="Retouch level 4"/></span>
+<span class="rate-retouch__text">4. Retouching of blemishes, scars, improving texture, removing of unwanted wrinkles, adjusting highlights and features</span>
+</label>
+</div>
+</fieldset>
+{{end}}
+
+{{define "rate_color_ref"}}
+<label class="rate-field">Color reference
+<input class="_4ORMAT_module_contact_input" name="Color_Reference" type="text" maxlength="2000" placeholder="Link to color reference (optional)" autocomplete="off"/>
+</label>
+{{end}}
+
+{{define "rate_format_std"}}
+<label class="rate-field">Format
+<select class="_4ORMAT_module_contact_input" name="Format" required>
+<option value="" disabled selected>Select</option>
+<option value="JPG">JPG</option>
+<option value="TIFF">TIFF</option>
+<option value="PSD">PSD</option>
+<option value="Other / Specify in the brief">Other / Specify in the brief</option>
+</select>
+</label>
+{{end}}
+
+{{define "rate_format_cut"}}
+<label class="rate-field">Format
+<select class="_4ORMAT_module_contact_input" name="Format" required>
+<option value="" disabled selected>Select</option>
+<option value="PNG">PNG</option>
+<option value="JPG">JPG</option>
+<option value="TIFF">TIFF</option>
+<option value="TIFF/with layers">TIFF/with layers</option>
+<option value="PSD">PSD</option>
+<option value="PSD/with layers">PSD/with layers</option>
+<option value="Other / Specify in the brief">Other / Specify in the brief</option>
+</select>
+</label>
+{{end}}
+
+{{define "rate_profile"}}
+<label class="rate-field">Profile
+<select class="_4ORMAT_module_contact_input" name="Profile" required>
+<option value="" disabled selected>Select</option>
+<option value="Adobe RGB (1998)">Adobe RGB (1998)</option>
+<option value="sRGB Profile">sRGB Profile</option>
+<option value="ProPhoto RGB">ProPhoto RGB</option>
+<option value="e-sRGB">e-sRGB</option>
+<option value="Other / Specify in the brief">Other / Specify in the brief</option>
+</select>
+</label>
+{{end}}
+
+{{define "rate_brief"}}
+<label class="rate-field">Brief
+<textarea class="_4ORMAT_module_contact_input" name="Brief" rows="5" maxlength="8000" placeholder="Tell us about the project"></textarea>
+</label>
+{{end}}
+
+{{define "rate_footer"}}
+<fieldset class="rate-fieldset rate-contact">
+<legend>Contact</legend>
+<label class="rate-field">Name
+<input class="_4ORMAT_module_contact_input" name="name" type="text" required maxlength="200" autocomplete="name"/>
+</label>
+<label class="rate-field">Preferred contact
+<select class="_4ORMAT_module_contact_input" name="Contact" required>
+<option value="" disabled selected>Select</option>
+<option value="Phone">Phone</option>
+<option value="Email">Email</option>
+<option value="WhatsApp">WhatsApp</option>
+</select>
+</label>
+<label class="rate-field">Email
+<input class="_4ORMAT_module_contact_input" name="email" type="email" required maxlength="254" autocomplete="email"/>
+</label>
+<label class="rate-field">Phone
+<input class="_4ORMAT_module_contact_input" name="Phone" type="tel" maxlength="200" autocomplete="tel"/>
+</label>
+</fieldset>
+<fieldset class="submit _4ORMAT_module_submit_left">
+<input class="btn primary _4ORMAT_module_contact_btn _4ORMAT_module_contact_input" type="submit" value="Submit project"/>
+<button type="button" class="rate-form-done" data-rate-close="1" hidden>Close</button>
+</fieldset>
+{{- if .TurnstileSiteKey }}
+<div class="cf-turnstile" data-sitekey="{{.TurnstileSiteKey}}" data-size="invisible"></div>
+{{- end }}
+{{end}}
+
+{{define "rate_colorwork_fashion"}}
+<fieldset class="rate-fieldset">
+<legend>Color Correction</legend>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Basic RAW Development (Camera RAW or Capture One)"/> Basic RAW Development (Camera RAW or Capture One)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)"/> Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Skin Tone Balancing (for example, reduce redness in hands/fingers)"/> Skin Tone Balancing (for example, reduce redness in hands/fingers)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Even Out Body Exposure (for example, when the neck and chest area lighter in relation to the face)"/> Even Out Body Exposure (for example, when the neck and chest area lighter in relation to the face)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Brightening Eye Whites and Teeth"/> Brightening Eye Whites and Teeth</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Color Correction by Reference"/> Color Correction by Reference</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="No-Reference Color Image Grading (options to our taste)"/> No-Reference Color Image Grading (options to our taste)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Selective Color Adjustment"/> Selective Color Adjustment</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Changing the color on individual elements"/> Changing the color on individual elements</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Working with Light Accents: Highlighting the Main Object by Brightness Adjusting"/> Working with Light Accents: Highlighting the Main Object by Brightness Adjusting</label>
+</fieldset>
+{{end}}
+
+{{define "rate_colorwork_beauty"}}
+<fieldset class="rate-fieldset">
+<legend>Color Correction</legend>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Basic RAW Development (Camera RAW or Capture One)"/> Basic RAW Development (Camera RAW or Capture One)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)"/> Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Skin Tone Balancing (for example, reduce redness in hands/fingers)"/> Skin Tone Balancing (for example, reduce redness in hands/fingers)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Even Out Body Exposure (for example, when the neck and chest area lighter in relation to the face)"/> Even Out Body Exposure (for example, when the neck and chest area lighter in relation to the face)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Brightening Eye Whites and Teeth"/> Brightening Eye Whites and Teeth</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Color Correction by Reference"/> Color Correction by Reference</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="No-Reference Color Image Grading (options to our taste)"/> No-Reference Color Image Grading (options to our taste)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Changing the color on individual elements (for example, makeup/nail/lipstick colors)"/> Changing the color on individual elements (for example, makeup/nail/lipstick colors)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Contrast Enhancement"/> Contrast Enhancement</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Working with Light Accents: Highlighting the Main Object by Brightness Adjusting"/> Working with Light Accents: Highlighting the Main Object by Brightness Adjusting</label>
+</fieldset>
+{{end}}
+
+{{define "rate_colorwork_product"}}
+<fieldset class="rate-fieldset">
+<legend>Color Correction</legend>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Basic RAW Development"/> Basic RAW Development</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Changing the color on individual elements"/> Changing the color on individual elements</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Color Correction by Reference"/> Color Correction by Reference</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="No-Reference Color Image Grading (options to our taste)"/> No-Reference Color Image Grading (options to our taste)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Contrast Enhancement"/> Contrast Enhancement</label>
+</fieldset>
+{{end}}
+
+{{define "rate_colorwork_manual"}}
+<fieldset class="rate-fieldset">
+<legend>Color Correction</legend>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Basic RAW Development"/> Basic RAW Development</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Color Correction by Reference"/> Color Correction by Reference</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="No-Reference Color Image Grading (options to our taste)"/> No-Reference Color Image Grading (options to our taste)</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Change the Color of Individual Elements"/> Change the Color of Individual Elements</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Contrast Enhancement"/> Contrast Enhancement</label>
+<label class="rate-check"><input type="checkbox" name="colorwork" value="Working with Light Accents: Highlighting the Main Object by Brightness Adjusting"/> Working with Light Accents: Highlighting the Main Object by Brightness Adjusting</label>
+</fieldset>
+{{end}}
+
+{{define "rate_background_fashion"}}
+<fieldset class="rate-fieldset">
+<legend>Background Editing</legend>
+<label class="rate-check"><input type="checkbox" name="background" value="Dust, Stain, and Scratch Removal"/> Dust, Stain, and Scratch Removal</label>
+<label class="rate-check"><input type="checkbox" name="background" value="Clipping mask"/> Clipping mask</label>
+<label class="rate-check"><input type="checkbox" name="background" value="Background Replacement"/> Background Replacement</label>
+</fieldset>
+{{end}}
+
+{{define "rate_background_product"}}
+<fieldset class="rate-fieldset">
+<legend>Background Editing</legend>
+<label class="rate-check"><input type="checkbox" name="background" value="Dust, Spot, and Scratch Removal"/> Dust, Spot, and Scratch Removal</label>
+<label class="rate-check"><input type="checkbox" name="background" value="Clipping mask"/> Clipping mask</label>
+<label class="rate-check"><input type="checkbox" name="background" value="Background Replacement"/> Background Replacement</label>
+<label class="rate-check"><input type="checkbox" name="background" value="Create a mirror image effect"/> Create a mirror image effect</label>
+<label class="rate-check"><input type="checkbox" name="background" value="Subject Shadow Addition"/> Subject Shadow Addition</label>
+</fieldset>
+{{end}}
+
+{{define "rate_model_fashion"}}
+<fieldset class="rate-fieldset">
+<legend>Model Editing</legend>
+<label class="rate-check"><input type="checkbox" name="model" value="Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)"/> Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Makeup Correction"/> Makeup Correction</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Manicure Adjustment"/> Manicure Adjustment</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Hair Retouching: (Stray Hair Cleanup, Fill Hair Gaps)"/> Hair Retouching: (Stray Hair Cleanup, Fill Hair Gaps)</label>
+</fieldset>
+{{end}}
+
+{{define "rate_model_beauty"}}
+<fieldset class="rate-fieldset">
+<legend>Model Editing</legend>
+<label class="rate-check"><input type="checkbox" name="model" value="Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)"/> Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Makeup Correction"/> Makeup Correction</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Manicure Adjustment"/> Manicure Adjustment</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Hair Retouching: (Stray Hair Cleanup, Fill Hair Gaps)"/> Hair Retouching: (Stray Hair Cleanup, Fill Hair Gaps)</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Detailed Lip Retouching"/> Detailed Lip Retouching</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Cosmetic Product Retouching in Frame (Lipstick, Powder, Perfume, etc.)"/> Cosmetic Product Retouching in Frame (Lipstick, Powder, Perfume, etc.)</label>
+<label class="rate-check"><input type="checkbox" name="model" value="Clothing Retouching (Wrinkle Softening, Shape Correction)"/> Clothing Retouching (Wrinkle Softening, Shape Correction)</label>
+</fieldset>
+{{end}}
+
+{{define "rate_clothing"}}
+<fieldset class="rate-fieldset">
+<legend>Clothing Editing</legend>
+<label class="rate-check"><input type="checkbox" name="clothing" value="General Cleaning (Pilling, Dust, Threads)"/> General Cleaning (Pilling, Dust, Threads)</label>
+<label class="rate-check"><input type="checkbox" name="clothing" value="Wrinkle/Crease Smoothing"/> Wrinkle/Crease Smoothing</label>
+<label class="rate-check"><input type="checkbox" name="clothing" value="Shape Correction"/> Shape Correction</label>
+<label class="rate-check"><input type="checkbox" name="clothing" value="Fix Clothing, Move Clothing (closer to the body)"/> Fix Clothing, Move Clothing (closer to the body)</label>
+<label class="rate-check"><input type="checkbox" name="clothing" value="Clothing Part Replacement from Additional Shots/Plates"/> Clothing Part Replacement from Additional Shots/Plates</label>
+</fieldset>
+{{end}}
+
+{{define "rate_footwear"}}
+<fieldset class="rate-fieldset">
+<legend>Footwear Editing</legend>
+<label class="rate-check"><input type="checkbox" name="footwear" value="General Cleaning (Dust, Scratches)"/> General Cleaning (Dust, Scratches)</label>
+<label class="rate-check"><input type="checkbox" name="footwear" value="Tape Removal from Shoe Sole"/> Tape Removal from Shoe Sole</label>
+<label class="rate-check"><input type="checkbox" name="footwear" value="Shoe Resizing to Models Foot Size"/> Shoe Resizing to Models Foot Size</label>
+</fieldset>
+{{end}}
+
+{{define "rate_objectwork"}}
+<fieldset class="rate-fieldset">
+<legend>Object Editing</legend>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Dust, Spot, Scratch, Chip, and Minor Flaw Removal"/> Dust, Spot, Scratch, Chip, and Minor Flaw Removal</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Object Alignment, Perspective Correction"/> Object Alignment, Perspective Correction</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Highlights Correction, Shape Enhancement, Transition Smoothing"/> Highlights Correction, Shape Enhancement, Transition Smoothing</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Highlight Addition"/> Highlight Addition</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Glare Reflection Removal"/> Glare Reflection Removal</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Refining Facets of Diamonds"/> Refining Facets of Diamonds</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Sharpening"/> Sharpening</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Brightness&amp;Contrast Enhancement"/> Brightness&amp;Contrast Enhancement</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Improving lights and Shadows"/> Improving lights and Shadows</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Metal Polishing"/> Metal Polishing</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Text and Logo Editing (add highlight/replacement from additional files or delete unnecessary text)"/> Text and Logo Editing (add highlight/replacement from additional files or delete unnecessary text)</label>
+<label class="rate-check"><input type="checkbox" name="objectwork" value="Image Compositing, Object Addition and Replacement"/> Image Compositing, Object Addition and Replacement</label>
+</fieldset>
+{{end}}
+
+{{define "rate_hairretouch"}}
+<fieldset class="rate-fieldset">
+<legend>Hair retouching</legend>
+<label class="rate-check"><input type="checkbox" name="hairretouch" value="Remove Flyaway Hair"/> Remove Flyaway Hair</label>
+<label class="rate-check"><input type="checkbox" name="hairretouch" value="Hair Drawing"/> Hair Drawing</label>
+<label class="rate-check"><input type="checkbox" name="hairretouch" value="Fill Hair Gaps"/> Fill Hair Gaps</label>
+<label class="rate-check"><input type="checkbox" name="hairretouch" value="Change Hair Color"/> Change Hair Color</label>
+<label class="rate-check"><input type="checkbox" name="hairretouch" value="Hair Color Enhancement/Saturation Addition"/> Hair Color Enhancement/Saturation Addition</label>
+<label class="rate-check"><input type="checkbox" name="hairretouch" value="Highlights and Depth Intensification"/> Highlights and Depth Intensification</label>
+<label class="rate-check"><input type="checkbox" name="hairretouch" value="Hair Smoothing/Length Softening"/> Hair Smoothing/Length Softening</label>
+</fieldset>
+{{end}}
+
+{{define "rate_clipping_model"}}
+<fieldset class="rate-fieldset">
+<legend>Model Clipping:</legend>
+<label class="rate-check"><input type="checkbox" name="clipping" value="Clipping mask"/> Clipping mask</label>
+<label class="rate-check"><input type="checkbox" name="clipping" value="Background Replacement"/> Background Replacement</label>
+</fieldset>
+{{end}}
+
+{{define "rate_clipping_object"}}
+<fieldset class="rate-fieldset">
+<legend>Item clipping:</legend>
+<label class="rate-check"><input type="checkbox" name="clipping" value="Clipping mask"/> Clipping mask</label>
+<label class="rate-check"><input type="checkbox" name="clipping" value="Background Replacement"/> Background Replacement</label>
+</fieldset>
+{{end}}
+
+{{define "rate_steps_fashion"}}
+<h3 class="rate-step">STEP 1</h3>
+{{template "rate_imagelink" .}}
+{{template "rate_total" .}}
+{{template "rate_delivery" .}}
+{{template "rate_retouch" .}}
+<h3 class="rate-step">STEP 2</h3>
+{{template "rate_color_ref" .}}
+{{template "rate_format_std" .}}
+{{template "rate_profile" .}}
+<h3 class="rate-step">STEP 3</h3>
+{{template "rate_colorwork_fashion" .}}
+{{template "rate_background_fashion" .}}
+{{template "rate_model_fashion" .}}
+{{template "rate_clothing" .}}
+{{template "rate_footwear" .}}
+<h3 class="rate-step">STEP 4</h3>
+{{template "rate_brief" .}}
+{{end}}

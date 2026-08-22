@@ -14,7 +14,8 @@ func TestRenderContactFormPostsToPublicAPI(t *testing.T) {
 		`id="contact_form_abc"`,
 		`name="website"`,
 		`name="_t"`,
-		`fetch(action`,
+		`form-submit.js`,
+		`SheyanovaForms.attach`,
 		`Thanks!`,
 	) {
 		t.Fatalf("missing expected markup:\n%s", html)

@@ -8,6 +8,9 @@ import (
 	"strings"
 )
 
+const templateSelectCols = `id, theme, name, description, allowed_blocks_json, default_blocks_json,
+       is_system, sort_order, kind, form_key, created_at, updated_at`
+
 func scanTemplate(scanner interface {
 	Scan(dest ...any) error
 }) (Template, error) {
@@ -17,7 +20,7 @@ func scanTemplate(scanner interface {
 	if err := scanner.Scan(
 		&t.ID, &t.Theme, &t.Name, &t.Description,
 		&allowedRaw, &defaultRaw, &system, &t.SortOrder,
-		&t.CreatedAt, &t.UpdatedAt,
+		&t.Kind, &t.FormKey, &t.CreatedAt, &t.UpdatedAt,
 	); err != nil {
 		return Template{}, err
 	}
@@ -32,8 +35,7 @@ func scanTemplate(scanner interface {
 
 func (s *Store) ListTemplates() ([]Template, error) {
 	rows, err := s.db.Query(`
-SELECT id, theme, name, description, allowed_blocks_json, default_blocks_json,
-       is_system, sort_order, created_at, updated_at
+SELECT ` + templateSelectCols + `
 FROM templates ORDER BY sort_order ASC, name ASC`)
 	if err != nil {
 		return nil, err
@@ -52,8 +54,7 @@ FROM templates ORDER BY sort_order ASC, name ASC`)
 
 func (s *Store) GetTemplate(id string) (Template, error) {
 	row := s.db.QueryRow(`
-SELECT id, theme, name, description, allowed_blocks_json, default_blocks_json,
-       is_system, sort_order, created_at, updated_at
+SELECT `+templateSelectCols+`
 FROM templates WHERE id = ?`, id)
 	t, err := scanTemplate(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -67,8 +68,28 @@ func (s *Store) CreateTemplate(t Template) (Template, error) {
 	if strings.TrimSpace(t.Name) == "" {
 		return Template{}, fmt.Errorf("name required")
 	}
-	if t.Theme == "" {
-		return Template{}, fmt.Errorf("theme required")
+	if t.Kind != TemplateKindPage && t.Kind != TemplateKindForm {
+		return Template{}, fmt.Errorf("invalid kind: must be page or form")
+	}
+	if t.Kind == TemplateKindForm {
+		if t.Theme == "" {
+			t.Theme = ThemeRatesContent
+		}
+		if t.FormKey == "" {
+			t.FormKey = FormKeyFromTemplateID(t.ID)
+		}
+		t.FormKey = strings.ToLower(strings.TrimSpace(t.FormKey))
+		if !ValidRateFormKey(t.FormKey) {
+			return Template{}, fmt.Errorf("form_key must be a rates form (fashion, beauty, lookbook, editorial, product, or manual)")
+		}
+		if t.ID == "" {
+			t.ID = FormTemplateID(t.FormKey)
+		}
+	} else {
+		t.FormKey = ""
+		if t.Theme == "" {
+			return Template{}, fmt.Errorf("theme required")
+		}
 	}
 	if !ValidTheme(t.Theme) {
 		return Template{}, fmt.Errorf("invalid theme: must be %s", ValidThemeList())
@@ -79,7 +100,7 @@ func (s *Store) CreateTemplate(t Template) (Template, error) {
 	if err := validateDefaultBlocksJSON(t.DefaultBlocks); err != nil {
 		return Template{}, err
 	}
-	if len(t.AllowedBlocks) == 0 {
+	if t.Kind != TemplateKindForm && len(t.AllowedBlocks) == 0 {
 		t.AllowedBlocks = DefaultAllowedBlocks(t.Theme)
 	}
 	if t.ID == "" {
@@ -89,7 +110,7 @@ func (s *Store) CreateTemplate(t Template) (Template, error) {
 	if t.ID == "" {
 		return Template{}, fmt.Errorf("id required")
 	}
-	// Custom templates cannot reuse system theme ids unless creating that system row.
+	// Custom templates cannot reuse system ids unless creating that system row.
 	if !t.IsSystem && IsReservedTemplateID(t.ID) {
 		return Template{}, fmt.Errorf("id %q is reserved for system templates", t.ID)
 	}
@@ -107,10 +128,10 @@ func (s *Store) CreateTemplate(t Template) (Template, error) {
 	_, err := s.db.Exec(`
 INSERT INTO templates (
   id, theme, name, description, allowed_blocks_json, default_blocks_json,
-  is_system, sort_order, created_at, updated_at
-) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+  is_system, sort_order, kind, form_key, created_at, updated_at
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
 		t.ID, t.Theme, t.Name, t.Description, string(allowedJSON), string(t.DefaultBlocks),
-		sys, t.SortOrder, t.CreatedAt, t.UpdatedAt)
+		sys, t.SortOrder, t.Kind, t.FormKey, t.CreatedAt, t.UpdatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "constraint") {
 			return Template{}, fmt.Errorf("template id already exists")
@@ -179,13 +200,36 @@ func (s *Store) PatchTemplate(id string, patch map[string]any) (Template, error)
 	if strings.TrimSpace(cur.Name) == "" {
 		return Template{}, fmt.Errorf("name required")
 	}
+	if !cur.IsSystem {
+		if v, ok := patch["kind"].(string); ok {
+			k := strings.ToLower(strings.TrimSpace(v))
+			if k != TemplateKindPage && k != TemplateKindForm {
+				return Template{}, fmt.Errorf("invalid kind: must be page or form")
+			}
+			cur.Kind = k
+		}
+		if v, ok := patch["form_key"].(string); ok {
+			cur.FormKey = strings.ToLower(strings.TrimSpace(v))
+		}
+	}
+	if cur.Kind == TemplateKindForm {
+		if cur.FormKey == "" {
+			cur.FormKey = FormKeyFromTemplateID(cur.ID)
+		}
+		if !ValidRateFormKey(cur.FormKey) {
+			return Template{}, fmt.Errorf("form_key must be a rates form")
+		}
+	} else {
+		cur.FormKey = ""
+	}
+
 	cur.UpdatedAt = Now()
 	allowedJSON, _ := json.Marshal(cur.AllowedBlocks)
 	_, err = s.db.Exec(`
 UPDATE templates SET theme=?, name=?, description=?, allowed_blocks_json=?,
-  default_blocks_json=?, sort_order=?, updated_at=? WHERE id=?`,
+  default_blocks_json=?, sort_order=?, kind=?, form_key=?, updated_at=? WHERE id=?`,
 		cur.Theme, cur.Name, cur.Description, string(allowedJSON),
-		string(cur.DefaultBlocks), cur.SortOrder, cur.UpdatedAt, id)
+		string(cur.DefaultBlocks), cur.SortOrder, cur.Kind, cur.FormKey, cur.UpdatedAt, id)
 	if err != nil {
 		return Template{}, err
 	}
@@ -341,5 +385,37 @@ func builtinSystemTemplates() []Template {
 			IsSystem:  true,
 			SortOrder: 3,
 		},
+		{
+			ID:            ThemeRatesContent,
+			Theme:         ThemeRatesContent,
+			Kind:          TemplateKindPage,
+			Name:          "Rates",
+			Description:   "Category banners; each Rate banner chooses a form template (Fashion, Beauty, …).",
+			AllowedBlocks: []string{BlockRichText, BlockRateBanner},
+			DefaultBlocks: MustJSON(DefaultRatesBlocks()),
+			IsSystem:      true,
+			SortOrder:     4,
+		},
+		builtinFormTemplate(FormTemplateFashion, "Fashion", RateKeyFashion, 10),
+		builtinFormTemplate(FormTemplateBeauty, "Beauty", RateKeyBeauty, 11),
+		builtinFormTemplate(FormTemplateLookbook, "Lookbook", RateKeyLookbook, 12),
+		builtinFormTemplate(FormTemplateEditorial, "Editorial", RateKeyEditorial, 13),
+		builtinFormTemplate(FormTemplateProduct, "Product", RateKeyProduct, 14),
+		builtinFormTemplate(FormTemplateManual, "Manual", RateKeyManual, 15),
+	}
+}
+
+func builtinFormTemplate(id, name, formKey string, sort int) Template {
+	return Template{
+		ID:            id,
+		Theme:         ThemeRatesContent,
+		Kind:          TemplateKindForm,
+		FormKey:       formKey,
+		Name:          name,
+		Description:   name + " project request form. Connect this template on a Rate banner.",
+		AllowedBlocks: []string{},
+		DefaultBlocks: MustJSON([]any{}),
+		IsSystem:      true,
+		SortOrder:     sort,
 	}
 }

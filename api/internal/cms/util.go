@@ -28,21 +28,26 @@ func MustJSON(v any) json.RawMessage {
 
 func ValidTheme(t string) bool {
 	switch t {
-	case ThemeBAContent, ThemePanoramaGallery, ThemeTextContent, ThemeLookbookGallery:
+	case ThemeBAContent, ThemePanoramaGallery, ThemeTextContent, ThemeLookbookGallery, ThemeRatesContent:
 		return true
 	default:
 		return false
 	}
 }
 
-// IsReservedTemplateID is true for built-in system template ids (id == theme key).
+// IsReservedTemplateID is true for built-in system template ids
+// (page engines and named form templates). Form ids are not generate engines.
 func IsReservedTemplateID(id string) bool {
-	return ValidTheme(id)
+	if ValidTheme(id) {
+		return true
+	}
+	key := FormKeyFromTemplateID(id)
+	return ValidRateFormKey(key) && id == FormTemplateID(key)
 }
 
 // ValidThemeList is the human-readable set of generate engines.
 func ValidThemeList() string {
-	return "ba_content, panorama_gallery, text_content, or lookbook_gallery"
+	return "ba_content, panorama_gallery, text_content, lookbook_gallery, or rates_content"
 }
 
 // HrefForPage is the site-root path for a CMS page (homepage → "/").
@@ -55,7 +60,7 @@ func HrefForPage(p Page) string {
 
 func ValidBlockType(t string) bool {
 	switch t {
-	case BlockComparisonSlider, BlockGalleryImage, BlockRichText, BlockContactForm:
+	case BlockComparisonSlider, BlockGalleryImage, BlockRichText, BlockContactForm, BlockRateBanner:
 		return true
 	default:
 		return false
@@ -71,6 +76,8 @@ func DefaultAllowedBlocks(theme string) []string {
 		return []string{BlockGalleryImage}
 	case ThemeTextContent:
 		return []string{BlockRichText, BlockContactForm}
+	case ThemeRatesContent:
+		return []string{BlockRichText, BlockRateBanner}
 	default:
 		return []string{}
 	}

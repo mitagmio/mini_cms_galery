@@ -10,7 +10,6 @@ import (
 	"net/mail"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -23,7 +22,10 @@ const (
 	maxName    = 200
 	maxEmail   = 254
 	maxMessage = 8000
-	maxBody    = 64 << 10
+	maxBody    = 256 << 10
+	maxField   = 2000
+	maxBrief   = 8000
+	maxArray   = 32
 )
 
 type Handler struct {
@@ -50,14 +52,16 @@ func NewHandler(store *cms.Store, origins []string, sender Sender, turnstileSecr
 }
 
 type submitReq struct {
-	Name      string `json:"name"`
-	Email     string `json:"email"`
-	Message   string `json:"message"`
-	Company   string `json:"company"`
-	Website   string `json:"website"`
-	Subject   string `json:"subject"`
-	LoadedAt  int64  `json:"_t"`
-	Turnstile string `json:"cf-turnstile-response"`
+	Form      string
+	Name      string
+	Email     string
+	Message   string
+	Company   string
+	Website   string
+	Subject   string
+	LoadedAt  int64
+	Turnstile string
+	Fields    map[string]any
 }
 
 func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +93,30 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "Unable to send right now. Please try again.")
 		return
 	}
-	name, emailAddr, message, verr := validateFields(req)
+	name, emailAddr, message, verr := "", "", "", ""
+	formKind := strings.TrimSpace(req.Form)
+	if formKind == "" {
+		formKind = "contact"
+	}
+	var subject, body, htmlBody string
+	switch {
+	case formKind == "contact":
+		name, emailAddr, message, verr = validateFields(req)
+		if verr == "" {
+			subject = "Contact form: " + name
+			body = formatBody(name, emailAddr, message, ip)
+		}
+	case strings.HasPrefix(formKind, "rates_"):
+		name, emailAddr, verr = validateRates(formKind, req)
+		if verr == "" {
+			label := strings.ToUpper(strings.TrimPrefix(formKind, "rates_"))
+			subject = "RATES / " + label + ": " + name
+			body, htmlBody = formatRatesEmail(formKind, req, name, emailAddr, ip)
+		}
+	default:
+		httpx.WriteError(w, http.StatusBadRequest, "Unknown form.")
+		return
+	}
 	if verr != "" {
 		httpx.WriteError(w, http.StatusBadRequest, verr)
 		return
@@ -135,8 +162,9 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		FromName:  fromName,
 		ReplyTo:   emailAddr,
 		ReplyName: name,
-		Subject:   "Contact form: " + name,
-		Body:      formatBody(name, emailAddr, message, ip),
+		Subject:   subject,
+		Body:      body,
+		HTMLBody:  htmlBody,
 	}
 	if h.Sender == nil {
 		log.Printf("contact: sender nil")
@@ -152,7 +180,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadGateway, publicSendError(err))
 		return
 	}
-	log.Printf("contact: sent ip=%s to=%s", ip, to)
+	log.Printf("contact: sent form=%s ip=%s to=%s", formKind, ip, to)
 	httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "message": "Thank you. Your message has been sent."})
 }
 
@@ -166,26 +194,48 @@ func decodeSubmit(r *http.Request) (submitReq, error) {
 		if len(strings.TrimSpace(string(raw))) == 0 {
 			return submitReq{}, errors.New("empty body")
 		}
-		var req submitReq
-		if err := json.Unmarshal(raw, &req); err != nil {
+		var fields map[string]any
+		if err := json.Unmarshal(raw, &fields); err != nil {
 			return submitReq{}, err
 		}
-		return req, nil
+		return reqFromFields(fields), nil
 	}
 	if err := r.ParseForm(); err != nil {
 		return submitReq{}, err
 	}
-	t, _ := strconv.ParseInt(r.FormValue("_t"), 10, 64)
+	fields := map[string]any{}
+	for k, vs := range r.Form {
+		if len(vs) > 1 {
+			arr := make([]any, len(vs))
+			for i, v := range vs {
+				arr[i] = v
+			}
+			fields[k] = arr
+			continue
+		}
+		if len(vs) == 1 {
+			fields[k] = vs[0]
+		}
+	}
+	return reqFromFields(fields), nil
+}
+
+func reqFromFields(fields map[string]any) submitReq {
+	if fields == nil {
+		fields = map[string]any{}
+	}
 	return submitReq{
-		Name:      r.FormValue("name"),
-		Email:     r.FormValue("email"),
-		Message:   r.FormValue("message"),
-		Company:   r.FormValue("company"),
-		Website:   r.FormValue("website"),
-		Subject:   r.FormValue("subject"),
-		LoadedAt:  t,
-		Turnstile: r.FormValue("cf-turnstile-response"),
-	}, nil
+		Form:      fieldString(fields, "form"),
+		Name:      fieldString(fields, "name", "Name"),
+		Email:     fieldString(fields, "email", "Email"),
+		Message:   fieldString(fields, "message"),
+		Company:   fieldString(fields, "company"),
+		Website:   fieldString(fields, "website"),
+		Subject:   fieldString(fields, "subject"),
+		LoadedAt:  fieldInt64(fields, "_t"),
+		Turnstile: fieldString(fields, "cf-turnstile-response"),
+		Fields:    fields,
+	}
 }
 
 func isHoneypot(req submitReq) bool {

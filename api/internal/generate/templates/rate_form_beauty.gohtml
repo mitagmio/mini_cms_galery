@@ -1,0 +1,23 @@
+{{define "rate_form_beauty"}}
+<form id="rates_form_beauty" class="rate-form email_form contact_form" method="post" action="{{.Action}}" novalidate data-rate-form="rates_beauty">
+{{template "rate_hidden" .}}
+{{template "rate_title" .}}
+{{template "rate_status" .}}
+<h3 class="rate-step">STEP 1</h3>
+{{template "rate_imagelink" .}}
+{{template "rate_total" .}}
+{{template "rate_delivery" .}}
+{{template "rate_retouch" .}}
+<h3 class="rate-step">STEP 2</h3>
+{{template "rate_color_ref" .}}
+{{template "rate_format_std" .}}
+{{template "rate_profile" .}}
+<h3 class="rate-step">STEP 3</h3>
+{{template "rate_colorwork_beauty" .}}
+{{template "rate_background_fashion" .}}
+{{template "rate_model_beauty" .}}
+<h3 class="rate-step">STEP 4</h3>
+{{template "rate_brief" .}}
+{{template "rate_footer" .}}
+</form>
+{{end}}

@@ -27,18 +27,22 @@ type Config struct {
 	CanonicalBase    string
 	PublicAPIURL     string
 	TurnstileSiteKey string
+	PublishedOnly    bool // true for live publish: skip drafts and unpublished nav links
 }
 
 type Generator struct {
-	Store *cms.Store
-	Cfg   Config
-	tmpl  *template.Template
+	Store       *cms.Store
+	Cfg         Config
+	tmpl        *template.Template
+	pagesByID   map[string]cms.Page
+	pagesBySlug map[string]cms.Page
 }
 
 type renderedBlock struct {
 	HTML     template.HTML
 	ImageSrc string
 	Alt      string
+	Type     string
 }
 
 func New(store *cms.Store, cfg Config) (*Generator, error) {
@@ -75,7 +79,12 @@ func (g *Generator) GenerateSite() error {
 	if err != nil {
 		return err
 	}
+	g.setPageIndex(pages)
+	emitted := make([]cms.Page, 0, len(pages))
 	for _, p := range pages {
+		if g.Cfg.PublishedOnly && !p.IsPublished() {
+			continue
+		}
 		full, err := g.Store.GetPage(p.ID)
 		if err != nil {
 			return err
@@ -83,8 +92,9 @@ func (g *Generator) GenerateSite() error {
 		if err := g.writePage(full); err != nil {
 			return fmt.Errorf("page %s: %w", full.Slug, err)
 		}
+		emitted = append(emitted, full)
 	}
-	return g.pruneObsoletePageDirs(pages)
+	return g.pruneObsoletePageDirs(emitted)
 }
 
 // pruneObsoletePageDirs removes /{old-slug}/ dirs left after renames so preview
@@ -130,10 +140,35 @@ func (g *Generator) GeneratePage(pageID string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	if pages, err := g.Store.ListPages(); err == nil {
+		g.setPageIndex(pages)
+	}
 	if err := g.writePage(p); err != nil {
 		return "", err
 	}
 	return g.pageURL(p), nil
+}
+
+func (g *Generator) setPageIndex(pages []cms.Page) {
+	g.pagesByID = make(map[string]cms.Page, len(pages))
+	g.pagesBySlug = make(map[string]cms.Page, len(pages))
+	for _, p := range pages {
+		g.pagesByID[p.ID] = p
+		if slug := strings.Trim(p.Slug, "/"); slug != "" {
+			g.pagesBySlug[slug] = p
+		}
+		if p.IsHomepage {
+			g.pagesBySlug[""] = p
+		}
+	}
+}
+
+func (g *Generator) contactAction() string {
+	api := strings.TrimRight(strings.TrimSpace(g.Cfg.PublicAPIURL), "/")
+	if api == "" {
+		api = "https://api.sheyanova.art"
+	}
+	return api + "/api/contact"
 }
 
 func (g *Generator) pageURL(p cms.Page) string {
@@ -282,6 +317,9 @@ func (g *Generator) prefixNav(items []cms.NavItem) []cms.NavItem {
 		if cp.Kind == cms.NavKindCategory && len(cp.Children) == 0 {
 			continue
 		}
+		if !g.navLinkAllowed(cp) {
+			continue
+		}
 		if cp.Href != "" && !isExternalHref(cp.Href) {
 			cp.Href = g.sitePath(cp.Href)
 		}
@@ -294,6 +332,36 @@ func isExternalHref(h string) bool {
 	h = strings.TrimSpace(h)
 	return strings.HasPrefix(h, "http://") || strings.HasPrefix(h, "https://") ||
 		strings.HasPrefix(h, "mailto:") || strings.HasPrefix(h, "//") || strings.HasPrefix(h, "#")
+}
+
+func (g *Generator) navLinkAllowed(it cms.NavItem) bool {
+	if !g.Cfg.PublishedOnly {
+		return true
+	}
+	if it.Kind == cms.NavKindCategory {
+		return true
+	}
+	if isExternalHref(it.Href) {
+		return true
+	}
+	if it.PageID != "" {
+		p, ok := g.pagesByID[it.PageID]
+		if !ok {
+			return false
+		}
+		return p.IsPublished()
+	}
+	slug := strings.Trim(it.Href, "/")
+	if slug == "" {
+		if p, ok := g.pagesBySlug[""]; ok {
+			return p.IsPublished()
+		}
+		return true
+	}
+	if p, ok := g.pagesBySlug[slug]; ok {
+		return p.IsPublished()
+	}
+	return true
 }
 
 func pageCanonicalURL(p cms.Page, canonBase string) string {
@@ -391,16 +459,19 @@ func (g *Generator) writePage(p cms.Page) error {
 			"LinkedInURL":  settings.LinkedInURL,
 			"Copyright":    settings.Copyright,
 		},
-		"Nav":             g.prefixNav(nav),
-		"HomeURL":         g.sitePath("/"),
-		"ActiveSlug":      active,
-		"ActiveHref":      activeHref,
-		"MetaDescription": meta,
-		"CanonicalURL":    canon,
-		"HTMLTitle":       htmlTitle,
-		"RenderedBlocks":  blocks,
-		"FormatData":      formatData,
-		"ShuffleSeed":     shuffleSeed,
+		"Nav":              g.prefixNav(nav),
+		"HomeURL":          g.sitePath("/"),
+		"ActiveSlug":       active,
+		"ActiveHref":       activeHref,
+		"MetaDescription":  meta,
+		"CanonicalURL":     canon,
+		"HTMLTitle":        htmlTitle,
+		"RenderedBlocks":   blocks,
+		"FormatData":       formatData,
+		"ShuffleSeed":      shuffleSeed,
+		"RateModals":       g.rateModals(p),
+		"BannerGridStyle":  template.CSS(cms.BannerGridStyle(p.Settings)),
+		"TurnstileSiteKey": g.Cfg.TurnstileSiteKey,
 	}
 
 	var buf strings.Builder
@@ -532,7 +603,7 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 </div>
 </div>
 </div>`, template.HTMLEscapeString(alt), imgSrc, imgSrc)
-			out = append(out, renderedBlock{HTML: template.HTML(html), ImageSrc: imgSrc, Alt: alt})
+			out = append(out, renderedBlock{HTML: template.HTML(html), ImageSrc: imgSrc, Alt: alt, Type: cms.BlockGalleryImage})
 			continue
 
 		case cms.BlockRichText:
@@ -565,10 +636,16 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 				TurnstileSiteKey: g.Cfg.TurnstileSiteKey,
 			})
 
+		case cms.BlockRateBanner:
+			mid, _ := data["media_id"].(string)
+			url, _ := data["url"].(string)
+			src, _ := resolve(mid, url)
+			html = renderRateBanner(data, src)
+
 		default:
 			html = fmt.Sprintf(`<!-- unknown block type %s -->`, template.HTMLEscapeString(b.Type))
 		}
-		out = append(out, renderedBlock{HTML: template.HTML(html)})
+		out = append(out, renderedBlock{HTML: template.HTML(html), Type: b.Type})
 	}
 	return out, used, nil
 }

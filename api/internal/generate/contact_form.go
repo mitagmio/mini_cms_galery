@@ -58,84 +58,22 @@ var contactFormTmpl = template.Must(template.New("contact_form").Parse(`
 {{- end }}
 </form>
 <noscript><p class="contact_form__status is-err">JavaScript is required to send this form.</p></noscript>
+<script src="/assets/theme/form-submit.js?v=1"></script>
 <script>
 (function(){
   var form = document.getElementById({{.FormIDJSON}});
-  if (!form) return;
-  var action = {{.ActionJSON}};
+  if (!form || !window.SheyanovaForms) return;
   var successMsg = {{.SuccessJSON}};
-  var t = form.querySelector('input[name="_t"]');
-  var loaded = Date.now();
-  if (t) t.value = String(loaded);
-  var status = form.querySelector('.contact_form__status');
-  function setStatus(kind, text) {
-    if (!status) return;
-    status.className = 'error_messages contact_form__status' + (kind ? ' is-' + kind : '');
-    status.textContent = text || '';
-  }
-  function val(n) {
-    var el = form.querySelector('[name="'+n+'"]');
-    return (el && el.value || '').trim();
-  }
-  function turnstileToken() {
-    var ts = form.querySelector('[name="cf-turnstile-response"]');
-    return (ts && ts.value) ? ts.value : '';
-  }
-  function send(token) {
-    var payload = {name: val('name'), email: val('email'), message: val('message'), _t: loaded};
-    var website = val('website');
-    if (website) payload.website = website;
-    if (token) payload['cf-turnstile-response'] = token;
-    fetch(action, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', 'Accept': 'application/json'},
-      body: JSON.stringify(payload)
-    }).then(function(res) {
-      return res.json().then(function(body) { return {res: res, body: body}; }).catch(function() {
-        return {res: res, body: {}};
-      });
-    }).then(function(out) {
-      if (out.res.ok && out.body && out.body.ok) {
-        setStatus('ok', (out.body.message || successMsg || 'Thank you. Your message has been sent.'));
-        form.reset();
-        loaded = Date.now();
-        if (t) t.value = String(loaded);
-      } else {
-        setStatus('err', (out.body && out.body.error) || 'Could not send your message. Please try again later.');
-      }
-    }).catch(function() {
-      setStatus('err', 'Could not send your message. Please try again later.');
-    }).then(function() {
-      form.classList.remove('is-busy');
-    });
-  }
-  form.addEventListener('submit', function(ev) {
-    ev.preventDefault();
-    if (form.classList.contains('is-busy')) return;
-    if (!val('name')) { setStatus('err', 'Please enter your name.'); return; }
-    if (!val('email')) { setStatus('err', 'Please enter a valid email address.'); return; }
-    if (!val('message')) { setStatus('err', 'Please enter a message.'); return; }
-    form.classList.add('is-busy');
-    setStatus('', 'Sending…');
-    var token = turnstileToken();
-    var widget = form.querySelector('.cf-turnstile');
-    if (!token && widget && window.turnstile) {
-      var done = false;
-      var finish = function(tok) {
-        if (done) return;
-        done = true;
-        send(tok || turnstileToken());
-      };
-      try {
-        window.turnstile.execute(widget, { callback: finish });
-      } catch (e) {
-        finish(token);
-        return;
-      }
-      setTimeout(function() { finish(turnstileToken()); }, 8000);
-      return;
+  window.SheyanovaForms.attach(form, {
+    action: {{.ActionJSON}},
+    successMessage: successMsg,
+    extra: {form: 'contact'},
+    validate: function(f) {
+      if (!window.SheyanovaForms.val(f, 'name')) return 'Please enter your name.';
+      if (!window.SheyanovaForms.val(f, 'email')) return 'Please enter a valid email address.';
+      if (!window.SheyanovaForms.val(f, 'message')) return 'Please enter a message.';
+      return '';
     }
-    send(token);
   });
 })();
 </script>

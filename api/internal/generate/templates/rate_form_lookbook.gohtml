@@ -1,0 +1,9 @@
+{{define "rate_form_lookbook"}}
+<form id="rates_form_lookbook" class="rate-form email_form contact_form" method="post" action="{{.Action}}" novalidate data-rate-form="rates_lookbook">
+{{template "rate_hidden" .}}
+{{template "rate_title" .}}
+{{template "rate_status" .}}
+{{template "rate_steps_fashion" .}}
+{{template "rate_footer" .}}
+</form>
+{{end}}

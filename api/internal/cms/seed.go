@@ -23,6 +23,10 @@ func (s *Store) BootSeed() error {
 	if err := s.EnsureSystemTemplates(); err != nil {
 		return err
 	}
+	if err := s.EnsureRatesPageAndNav(); err != nil {
+		log.Printf("cms: ensure rates page/nav: %v", err)
+		return err
+	}
 	if err := s.BackfillContactEmail(); err != nil {
 		log.Printf("cms: contact_email backfill: %v", err)
 	}

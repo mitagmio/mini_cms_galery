@@ -29,6 +29,7 @@ func (s *Service) GeneratePreview() error {
 	defer s.mu.Unlock()
 	prevPrefix := s.Gen.Cfg.PathPrefix
 	s.Gen.Cfg.PathPrefix = strings.TrimRight(s.Gen.Cfg.PreviewBase, "/")
+	s.Gen.Cfg.PublishedOnly = false
 	err := s.Gen.GenerateSite()
 	s.Gen.Cfg.PathPrefix = prevPrefix
 	return err
@@ -100,9 +101,11 @@ func (s *Service) HandlePublish(w http.ResponseWriter, r *http.Request) {
 		s.Gen.Cfg.OutDir = s.FrontDir
 	}
 	s.Gen.Cfg.PathPrefix = "" // public GHP URLs are site-root absolute
+	s.Gen.Cfg.PublishedOnly = true
 	err := s.Gen.GenerateSite()
 	s.Gen.Cfg.OutDir = prevOut
 	s.Gen.Cfg.PathPrefix = prevPrefix
+	s.Gen.Cfg.PublishedOnly = false
 	s.mu.Unlock()
 	if err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())

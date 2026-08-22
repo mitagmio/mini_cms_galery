@@ -133,6 +133,8 @@ CREATE TABLE IF NOT EXISTS templates (
   default_blocks_json TEXT NOT NULL DEFAULT '[]',
   is_system INTEGER NOT NULL DEFAULT 0,
   sort_order INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL DEFAULT 'page',
+  form_key TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
@@ -159,6 +161,12 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	}
 	if err := s.BackfillContactEmail(); err != nil {
 		return fmt.Errorf("migrate backfill contact_email: %w", err)
+	}
+	if err := s.ensureColumn("templates", "kind", "TEXT NOT NULL DEFAULT 'page'"); err != nil {
+		return fmt.Errorf("migrate templates.kind: %w", err)
+	}
+	if err := s.ensureColumn("templates", "form_key", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate templates.form_key: %w", err)
 	}
 	return nil
 }

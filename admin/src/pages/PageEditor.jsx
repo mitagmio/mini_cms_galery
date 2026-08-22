@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { admin, apiUrl } from '../api'
-import { BLOCK_PALETTE, allowedBlocksForTheme, mediaUrl, newBlock, templateLabel, TEMPLATES } from '../blockTypes'
+import { BLOCK_PALETTE, RATE_FORM_KEYS, RATE_CAPTIONS, BANNER_ASPECTS, DEFAULT_BANNER_ASPECT, FORM_TEMPLATES, allowedBlocksForTheme, bannerFormKey, formKeyFromTemplateId, formTemplateId, formTemplateName, mediaUrl, newBlock, rateBannerData, templateLabel, TEMPLATES } from '../blockTypes'
 import MediaPicker from '../components/MediaPicker'
 import { useToast } from '../toast'
 
@@ -21,6 +21,7 @@ export default function PageEditor() {
   const [savingNav, setSavingNav] = useState(false)
   const [navDirty, setNavDirty] = useState(false)
   const [menu, setMenu] = useState(emptyMenuState())
+  const [formTemplates, setFormTemplates] = useState(FORM_TEMPLATES)
 
   const selected = useMemo(
     () => blocks.find((b) => b.id === selectedId) || null,
@@ -35,6 +36,30 @@ export default function PageEditor() {
   }, [page?.template, page?.theme])
 
   const isLookbook = (page?.template || page?.theme) === 'lookbook_gallery'
+  const isRates = (page?.template || page?.theme) === 'rates_content'
+
+  useEffect(() => {
+    let cancelled = false
+    admin.templates
+      .list()
+      .then((data) => {
+        if (cancelled) return
+        const list = (data.templates || data.items || []).filter((t) => t.kind === 'form')
+        if (!list.length) return
+        setFormTemplates(
+          list.map((t) => ({
+            id: t.id,
+            name: t.name || t.label,
+            form_key: t.form_key || formKeyFromTemplateId(t.id),
+            kind: 'form',
+          }))
+        )
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const loadMediaIndex = useCallback(async () => {
     try {
@@ -121,7 +146,29 @@ export default function PageEditor() {
     )
   }
 
+  function updatePageSettings(patch) {
+    setPage((prev) =>
+      prev ? { ...prev, settings: { ...(prev.settings || {}), ...patch } } : prev
+    )
+  }
+
   function addBlock(type) {
+    if (type === 'rate_banner') {
+      const used = new Set(
+        blocks.filter((b) => b.type === 'rate_banner').map((b) => bannerFormKey(b.data))
+      )
+      const next = RATE_FORM_KEYS.find((k) => !used.has(k))
+      if (!next) {
+        toast.error('Each category can appear only once')
+        return
+      }
+      const b = newBlock(type)
+      b.data = rateBannerData(next)
+      setBlocks((prev) => [...prev, b])
+      setSelectedId(b.id)
+      setInspectorTab('block')
+      return
+    }
     const b = newBlock(type)
     setBlocks((prev) => [...prev, b])
     setSelectedId(b.id)
@@ -195,6 +242,7 @@ export default function PageEditor() {
         seo: page.seo || {},
         nav_label: (menu.include ? menu.label : page.nav_label) || page.title,
         status: page.status || 'draft',
+        settings: page.settings || {},
       })
       const p = patched.page || patched
       if (p && typeof p === 'object') {
@@ -372,12 +420,29 @@ export default function PageEditor() {
       <div className="editor-panes">
         <aside className="palette">
           <h3>Blocks</h3>
-          {palette.map((b) => (
-            <button key={b.type} type="button" className="palette-item" onClick={() => addBlock(b.type)}>
+          {palette.map((b) => {
+            const usedKeys = new Set(
+              blocks.filter((x) => x.type === 'rate_banner').map((x) => bannerFormKey(x.data))
+            )
+            const disabled = b.type === 'rate_banner' && usedKeys.size >= RATE_FORM_KEYS.length
+            return (
+            <button
+              key={b.type}
+              type="button"
+              className="palette-item"
+              disabled={disabled}
+              onClick={() => addBlock(b.type)}
+            >
               <strong>{b.label}</strong>
-              <span className="muted">{b.hint}</span>
+              <span className="muted">{disabled ? 'All six form templates are on the page' : b.hint}</span>
             </button>
-          ))}
+            )
+          })}
+          {isRates ? (
+            <p className="muted small">
+              Each Rate banner chooses a form template. Banner size is shared for the whole grid (Grid tab).
+            </p>
+          ) : null}
         </aside>
 
         <section className="canvas">
@@ -437,6 +502,15 @@ export default function PageEditor() {
             >
               Menu
             </button>
+            {isRates ? (
+              <button
+                type="button"
+                className={inspectorTab === 'grid' ? 'active' : ''}
+                onClick={() => setInspectorTab('grid')}
+              >
+                Grid
+              </button>
+            ) : null}
           </div>
 
           {inspectorTab === 'menu' ? (
@@ -450,6 +524,11 @@ export default function PageEditor() {
               savingNav={savingNav}
               onChange={patchMenu}
               onSave={saveMenu}
+            />
+          ) : inspectorTab === 'grid' && isRates ? (
+            <RatesGridFields
+              settings={page.settings || {}}
+              onChange={updatePageSettings}
             />
           ) : inspectorTab === 'seo' ? (
             <div className="inspector-body">
@@ -499,6 +578,16 @@ export default function PageEditor() {
             <BlockInspector
               block={selected}
               mediaIndex={mediaIndex}
+              formTemplates={formTemplates}
+              usedFormKeys={
+                new Set(
+                  blocks
+                    .filter((b) => b.type === 'rate_banner' && b.id !== selected.id)
+                    .map((b) => bannerFormKey(b.data))
+                )
+              }
+              pageSettings={page.settings || {}}
+              onPageSettings={updatePageSettings}
               onChange={(patch) => updateBlockData(selected.id, patch)}
               onPick={(cfg) => setPicker({ ...cfg, blockId: selected.id })}
               onSwap={() => {
@@ -613,6 +702,25 @@ function BlockPreview({ block, mediaIndex }) {
   if (block.type === 'contact_form') {
     return <div className="muted">Contact form · {d.heading || 'Contact'}</div>
   }
+  if (block.type === 'rate_banner') {
+    const price = String(d.price || '').trim()
+    const key = bannerFormKey(d)
+    return (
+      <div className="rate-banner-preview">
+        <Thumb media={mediaIndex[d.media_id]} label="Tile" />
+        <div className="rate-banner-preview__overlay">
+          <strong>{d.caption || RATE_CAPTIONS[key] || 'Category'}</strong>
+          <span className="muted">{formTemplateName(key)}</span>
+          {price ? (
+            <span>
+              {price} {d.currency || ''}
+            </span>
+          ) : null}
+          {d.start_from_label ? <span className="muted">{d.start_from_label}</span> : null}
+        </div>
+      </div>
+    )
+  }
   return <div className="muted">{block.type}</div>
 }
 
@@ -625,7 +733,62 @@ function Thumb({ media, label }) {
   )
 }
 
-function BlockInspector({ block, mediaIndex, onChange, onPick, onSwap, onDelete }) {
+function RatesGridFields({ settings, onChange, compact }) {
+  const aspect = settings?.banner_aspect || DEFAULT_BANNER_ASPECT
+  const minH = settings?.banner_min_height
+  return (
+    <div className="inspector-body">
+      <fieldset className="rates-grid-fields">
+        <legend>Banner size</legend>
+        <label>
+          Aspect ratio
+          <select
+            value={aspect}
+            onChange={(e) => onChange({ banner_aspect: e.target.value })}
+          >
+            {BANNER_ASPECTS.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Min height (px, optional)
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={minH || ''}
+            placeholder="0"
+            onChange={(e) => {
+              const v = e.target.value
+              onChange({ banner_min_height: v === '' ? 0 : Number(v) })
+            }}
+          />
+        </label>
+        <p className="muted">
+          {compact
+            ? 'Applies to every Rate banner on this page (same as Grid tab).'
+            : 'Applies to every Rate banner on this page. Each Rate banner chooses a form template.'}
+        </p>
+      </fieldset>
+    </div>
+  )
+}
+
+function BlockInspector({
+  block,
+  mediaIndex,
+  onChange,
+  onPick,
+  onSwap,
+  onDelete,
+  formTemplates = FORM_TEMPLATES,
+  usedFormKeys = new Set(),
+  pageSettings = {},
+  onPageSettings,
+}) {
   const d = block.data || {}
 
   if (block.type === 'comparison_slider') {
@@ -754,6 +917,89 @@ function BlockInspector({ block, mediaIndex, onChange, onPick, onSwap, onDelete 
             value={d.success_message || ''}
             onChange={(e) => onChange({ success_message: e.target.value })}
           />
+        </label>
+        <button type="button" className="secondary danger" onClick={onDelete}>
+          Delete block
+        </button>
+      </div>
+    )
+  }
+
+  if (block.type === 'rate_banner') {
+    const currentKey = bannerFormKey(d)
+    const currentId = d.form_template_id || formTemplateId(currentKey)
+    return (
+      <div className="inspector-body">
+        <label>
+          Form template
+          <select
+            value={currentId}
+            onChange={(e) => {
+              const id = e.target.value
+              const key = formKeyFromTemplateId(id)
+              if (usedFormKeys.has(key)) return
+              const patch = { form_template_id: id, form_key: key }
+              if (!d.caption || d.caption === RATE_CAPTIONS[currentKey]) {
+                patch.caption = RATE_CAPTIONS[key] || d.caption
+              }
+              onChange(patch)
+            }}
+          >
+            {formTemplates.map((t) => {
+              const key = t.form_key || formKeyFromTemplateId(t.id)
+              const taken = usedFormKeys.has(key) && t.id !== currentId
+              return (
+                <option key={t.id} value={t.id} disabled={taken}>
+                  {t.name || t.label || key}
+                  {taken ? ' (in use)' : ''}
+                </option>
+              )
+            })}
+          </select>
+        </label>
+        <p className="muted">
+          Each form template can be used on at most one banner. Clicking the banner opens this form.
+        </p>
+        {typeof onPageSettings === 'function' ? (
+          <RatesGridFields settings={pageSettings} onChange={onPageSettings} compact />
+        ) : null}
+        <div className="field-row">
+          <span>Image</span>
+          <Thumb media={mediaIndex[d.media_id]} label="—" />
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => onPick({ field: 'media_id', title: 'Pick banner image' })}
+          >
+            Pick
+          </button>
+        </div>
+        <label>
+          Alt
+          <input value={d.alt || ''} onChange={(e) => onChange({ alt: e.target.value })} />
+        </label>
+        <label>
+          Caption
+          <input value={d.caption || ''} onChange={(e) => onChange({ caption: e.target.value })} />
+        </label>
+        <label>
+          Start-from label
+          <input
+            value={d.start_from_label || ''}
+            onChange={(e) => onChange({ start_from_label: e.target.value })}
+          />
+        </label>
+        <label>
+          Price
+          <input
+            value={d.price || ''}
+            onChange={(e) => onChange({ price: e.target.value })}
+            placeholder="Leave empty to hide"
+          />
+        </label>
+        <label>
+          Currency
+          <input value={d.currency || ''} onChange={(e) => onChange({ currency: e.target.value })} />
         </label>
         <button type="button" className="secondary danger" onClick={onDelete}>
           Delete block

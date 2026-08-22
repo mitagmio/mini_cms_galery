@@ -1,0 +1,53 @@
+{{define "rate_form_manual"}}
+<form id="rates_form_manual" class="rate-form email_form contact_form" method="post" action="{{.Action}}" novalidate data-rate-form="rates_manual">
+{{template "rate_hidden" .}}
+{{template "rate_title" .}}
+{{template "rate_status" .}}
+<label class="rate-field">Task
+<select class="_4ORMAT_module_contact_input" name="task" required data-rate-task>
+<option value="" disabled selected>Select</option>
+<option value="cut_model">Only cut out the model</option>
+<option value="cut_object">Only cut out the object</option>
+<option value="color">Only color correction</option>
+<option value="hair">Only hair retouching</option>
+</select>
+</label>
+<h3 class="rate-step">STEP 1</h3>
+{{template "rate_imagelink" .}}
+{{template "rate_total" .}}
+{{template "rate_delivery" .}}
+<div data-task-show="color,hair,cut_model,cut_object" class="rate-color-ref-wrap">
+<label class="rate-field">Color reference
+<input class="_4ORMAT_module_contact_input" name="Color_Reference" type="text" maxlength="2000" placeholder="Link to color reference" autocomplete="off" data-rate-color-ref/>
+</label>
+</div>
+<div data-task-show="cut_model,cut_object" hidden>
+<label class="rate-field">Background reference
+<input class="_4ORMAT_module_contact_input" name="backclipping" type="text" maxlength="2000" placeholder="Background reference" autocomplete="off"/>
+</label>
+</div>
+<div data-format-mode="std">
+{{template "rate_format_std" .}}
+</div>
+<div data-format-mode="cut" hidden>
+{{template "rate_format_cut" .}}
+</div>
+{{template "rate_profile" .}}
+<h3 class="rate-step">STEP 2</h3>
+<div data-task-show="color" hidden>
+{{template "rate_colorwork_manual" .}}
+</div>
+<div data-task-show="hair" hidden>
+{{template "rate_hairretouch" .}}
+</div>
+<div data-task-show="cut_model" hidden>
+{{template "rate_clipping_model" .}}
+</div>
+<div data-task-show="cut_object" hidden>
+{{template "rate_clipping_object" .}}
+</div>
+<h3 class="rate-step">STEP 3</h3>
+{{template "rate_brief" .}}
+{{template "rate_footer" .}}
+</form>
+{{end}}

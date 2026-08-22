@@ -131,6 +131,12 @@ func TestGenerateLookbookHTML(t *testing.T) {
 	if strings.Contains(html, "gallery-harden.css") {
 		t.Fatal("must not load unscoped gallery-harden.css")
 	}
+	if strings.Contains(html, "gallery-center.js") {
+		t.Fatal("lookbook overlay owns paging; must not load panorama gallery-center.js")
+	}
+	if strings.Contains(html, `class="lookbook-spacer`) || strings.Contains(html, "gallery-center-spacer") {
+		t.Fatal("static HTML must not emit spacer frames; lookbook.js injects aria-hidden gutters at runtime")
+	}
 	if strings.Count(html, `id="assets"`) != 1 {
 		t.Fatalf("want exactly one #assets, got %d", strings.Count(html, `id="assets"`))
 	}

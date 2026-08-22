@@ -1,7 +1,9 @@
 package contact
 
 import (
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"mime"
@@ -46,6 +48,7 @@ type Message struct {
 	ReplyName string
 	Subject   string
 	Body      string
+	HTMLBody  string
 }
 
 type Sender interface {
@@ -202,17 +205,40 @@ func rfc822(cfg SMTPConfig, m Message) string {
 	}
 	fmt.Fprintf(&b, "Subject: %s\r\n", mime.QEncoding.Encode("utf-8", m.Subject))
 	fmt.Fprintf(&b, "MIME-Version: 1.0\r\n")
-	fmt.Fprintf(&b, "Content-Type: text/plain; charset=utf-8\r\n")
-	fmt.Fprintf(&b, "Content-Transfer-Encoding: 8bit\r\n")
 	fmt.Fprintf(&b, "Date: %s\r\n", time.Now().UTC().Format(time.RFC1123Z))
-	fmt.Fprintf(&b, "\r\n")
-	body := strings.ReplaceAll(m.Body, "\r\n", "\n")
-	body = strings.ReplaceAll(body, "\n", "\r\n")
-	b.WriteString(body)
-	if !strings.HasSuffix(body, "\r\n") {
-		b.WriteString("\r\n")
+	plain := crlfBody(m.Body)
+	htmlPart := strings.TrimSpace(m.HTMLBody)
+	if htmlPart == "" {
+		fmt.Fprintf(&b, "Content-Type: text/plain; charset=utf-8\r\n")
+		fmt.Fprintf(&b, "Content-Transfer-Encoding: 8bit\r\n")
+		fmt.Fprintf(&b, "\r\n")
+		b.WriteString(plain)
+		return b.String()
 	}
+	var nonce [8]byte
+	_, _ = rand.Read(nonce[:])
+	boundary := "sheyanova-alt-" + hex.EncodeToString(nonce[:])
+	fmt.Fprintf(&b, "Content-Type: multipart/alternative; boundary=%s\r\n", boundary)
+	fmt.Fprintf(&b, "\r\n")
+	fmt.Fprintf(&b, "--%s\r\n", boundary)
+	fmt.Fprintf(&b, "Content-Type: text/plain; charset=utf-8\r\n")
+	fmt.Fprintf(&b, "Content-Transfer-Encoding: 8bit\r\n\r\n")
+	b.WriteString(plain)
+	fmt.Fprintf(&b, "--%s\r\n", boundary)
+	fmt.Fprintf(&b, "Content-Type: text/html; charset=utf-8\r\n")
+	fmt.Fprintf(&b, "Content-Transfer-Encoding: 8bit\r\n\r\n")
+	b.WriteString(crlfBody(htmlPart))
+	fmt.Fprintf(&b, "--%s--\r\n", boundary)
 	return b.String()
+}
+
+func crlfBody(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\n", "\r\n")
+	if !strings.HasSuffix(s, "\r\n") {
+		s += "\r\n"
+	}
+	return s
 }
 
 func formatAddress(name, email string) string {

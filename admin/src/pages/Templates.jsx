@@ -20,6 +20,8 @@ const EMPTY_FORM = {
   id: '',
   name: '',
   theme: 'ba_content',
+  kind: 'page',
+  form_key: '',
   description: '',
   allowed_blocks: ['comparison_slider'],
   default_blocks_json: '[]',
@@ -68,6 +70,82 @@ const FALLBACK_STARTERS = [
     description: TEMPLATES.find((t) => t.id === 'text_content').description,
     allowed_blocks: ['rich_text', 'contact_form'],
     default_blocks: [{ type: 'rich_text', data: newBlock('rich_text').data }],
+    is_system: true,
+  },
+  {
+    id: 'rates_content',
+    theme: 'rates_content',
+    name: 'Rates',
+    description: TEMPLATES.find((t) => t.id === 'rates_content').description,
+    allowed_blocks: ['rich_text', 'rate_banner'],
+    default_blocks: DEFAULT_BLOCKS_BY_THEME.rates_content(),
+    is_system: true,
+    kind: 'page',
+  },
+  {
+    id: 'form_fashion',
+    theme: 'rates_content',
+    name: 'Fashion',
+    kind: 'form',
+    form_key: 'fashion',
+    description: 'Fashion project request form. Connect this template on a Rate banner.',
+    allowed_blocks: [],
+    default_blocks: [],
+    is_system: true,
+  },
+  {
+    id: 'form_beauty',
+    theme: 'rates_content',
+    name: 'Beauty',
+    kind: 'form',
+    form_key: 'beauty',
+    description: 'Beauty project request form. Connect this template on a Rate banner.',
+    allowed_blocks: [],
+    default_blocks: [],
+    is_system: true,
+  },
+  {
+    id: 'form_lookbook',
+    theme: 'rates_content',
+    name: 'Lookbook',
+    kind: 'form',
+    form_key: 'lookbook',
+    description: 'Lookbook project request form. Connect this template on a Rate banner.',
+    allowed_blocks: [],
+    default_blocks: [],
+    is_system: true,
+  },
+  {
+    id: 'form_editorial',
+    theme: 'rates_content',
+    name: 'Editorial',
+    kind: 'form',
+    form_key: 'editorial',
+    description: 'Editorial project request form. Connect this template on a Rate banner.',
+    allowed_blocks: [],
+    default_blocks: [],
+    is_system: true,
+  },
+  {
+    id: 'form_product',
+    theme: 'rates_content',
+    name: 'Product',
+    kind: 'form',
+    form_key: 'product',
+    description: 'Product project request form. Connect this template on a Rate banner.',
+    allowed_blocks: [],
+    default_blocks: [],
+    is_system: true,
+  },
+  {
+    id: 'form_manual',
+    theme: 'rates_content',
+    name: 'Manual',
+    kind: 'form',
+    form_key: 'manual',
+    description: 'Manual project request form. Connect this template on a Rate banner.',
+    allowed_blocks: [],
+    default_blocks: [],
     is_system: true,
   },
 ]
@@ -125,6 +203,8 @@ export default function Templates() {
       id: tmpl.id,
       name: tmpl.name || '',
       theme: tmpl.theme || tmpl.key || 'ba_content',
+      kind: tmpl.kind || 'page',
+      form_key: tmpl.form_key || '',
       description: tmpl.description || '',
       allowed_blocks: [...(tmpl.allowed_blocks || [])],
       default_blocks_json: JSON.stringify(tmpl.default_blocks || [], null, 2),
@@ -171,13 +251,16 @@ export default function Templates() {
       toast.error('Templates API is not available yet')
       return
     }
-    let default_blocks
-    try {
-      default_blocks = JSON.parse(form.default_blocks_json || '[]')
-      if (!Array.isArray(default_blocks)) throw new Error('must be an array')
-    } catch {
-      toast.error('Default blocks must be valid JSON array')
-      return
+    const isForm = form.kind === 'form'
+    let default_blocks = []
+    if (!isForm) {
+      try {
+        default_blocks = JSON.parse(form.default_blocks_json || '[]')
+        if (!Array.isArray(default_blocks)) throw new Error('must be an array')
+      } catch {
+        toast.error('Default blocks must be valid JSON array')
+        return
+      }
     }
 
     const name = form.name.trim()
@@ -186,15 +269,23 @@ export default function Templates() {
       return
     }
 
-    const body = {
-      name,
-      label: name,
-      description: form.description.trim(),
-      theme: form.theme,
-      key: form.theme,
-      allowed_blocks: form.allowed_blocks,
-      default_blocks,
-    }
+    const body = isForm
+      ? {
+          name,
+          label: name,
+          description: form.description.trim(),
+          kind: 'form',
+        }
+      : {
+          name,
+          label: name,
+          description: form.description.trim(),
+          theme: form.theme,
+          key: form.theme,
+          kind: 'page',
+          allowed_blocks: form.allowed_blocks,
+          default_blocks,
+        }
 
     setSaving(true)
     try {
@@ -219,6 +310,10 @@ export default function Templates() {
   }
 
   async function createFrom(tmpl) {
+    if (tmpl.kind === 'form') {
+      toast.error('Form templates cannot create a page — attach one on a Rate banner')
+      return
+    }
     const title = tmpl.name || tmpl.label || 'Untitled'
     const slug = slugify(title)
     const theme = tmpl.theme || tmpl.key || tmpl.id
@@ -257,6 +352,9 @@ export default function Templates() {
     ? templates.find((t) => t.id === editingId)
     : null
   const themeLocked = Boolean(editing?.is_system)
+  const editingForm = (form.kind || editing?.kind) === 'form'
+  const pageTemplates = templates.filter((t) => t.kind !== 'form')
+  const formTemplates = templates.filter((t) => t.kind === 'form')
 
   return (
     <div className="page">
@@ -264,7 +362,7 @@ export default function Templates() {
         <div>
           <h1>Templates</h1>
           <p className="muted">
-            Page blueprints — use to create a page, or edit metadata and defaults
+            Page blueprints and named form templates. Attach a form template on each Rate banner.
           </p>
         </div>
         <div className="bar tight">
@@ -307,22 +405,45 @@ export default function Templates() {
               <p className="muted">
                 Id: <code>{editingId}</code>
                 {editing?.is_system ? ' · system' : ''}
+                {editingForm ? ' · form' : ''}
               </p>
             )}
-            <label>
-              Theme engine
-              <select
-                value={form.theme}
-                onChange={(e) => onThemeChange(e.target.value)}
-                disabled={themeLocked}
-              >
-                {THEME_OPTIONS.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.label} ({t.id})
-                  </option>
-                ))}
-              </select>
-            </label>
+            {editingForm ? (
+              <>
+                <p>
+                  <span className="badge">Form</span>
+                  {form.form_key ? (
+                    <span className="badge">{form.form_key}</span>
+                  ) : null}
+                </p>
+                <p className="muted">
+                  Drives the {form.name || 'this'} Rate banner
+                  {form.form_key ? (
+                    <>
+                      {' '}
+                      (<code>form_key={form.form_key}</code>, POST{' '}
+                      <code>form=rates_{form.form_key}</code>)
+                    </>
+                  ) : null}
+                  . Fields are defined by the {form.name || 'form'} form layout.
+                </p>
+              </>
+            ) : (
+              <label>
+                Theme engine
+                <select
+                  value={form.theme}
+                  onChange={(e) => onThemeChange(e.target.value)}
+                  disabled={themeLocked}
+                >
+                  {THEME_OPTIONS.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.label} ({t.id})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <label>
               Description
               <textarea
@@ -331,6 +452,8 @@ export default function Templates() {
                 onChange={(e) => patchForm('description', e.target.value)}
               />
             </label>
+            {!editingForm && (
+              <>
             <fieldset className="block-checkboxes">
               <legend>Allowed blocks</legend>
               <div className="bar tight">
@@ -356,6 +479,8 @@ export default function Templates() {
                 spellCheck={false}
               />
             </label>
+              </>
+            )}
             <div className="bar tight">
               <button type="submit" disabled={saving || !apiReady}>
                 {saving ? 'Saving…' : editingId ? 'Save' : 'Create'}
@@ -369,47 +494,101 @@ export default function Templates() {
       )}
 
       <section className="section">
-        <h2>All templates {loading ? '…' : `(${templates.length})`}</h2>
+        <h2>Page templates {loading ? '…' : `(${pageTemplates.length})`}</h2>
         <div className="template-grid">
-          {templates.map((t) => (
-            <article key={t.id} className="template-card">
-              <h2>{t.name}</h2>
-              <p className="muted">{t.description || '—'}</p>
-              <p>
-                <span className="badge">{t.theme || t.id}</span>
-                {t.is_system ? <span className="badge">system</span> : null}
-              </p>
-              {t.allowed_blocks?.length > 0 && (
-                <p className="muted small">
-                  Blocks: {t.allowed_blocks.join(', ')}
-                </p>
-              )}
-              <div className="row-actions">
-                <button type="button" onClick={() => createFrom(t)}>
-                  Use
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => openEdit(t)}
-                  disabled={!apiReady}
-                >
-                  Edit
-                </button>
-              </div>
-            </article>
+          {pageTemplates.map((t) => (
+            <TemplateCard
+              key={t.id}
+              t={t}
+              apiReady={apiReady}
+              onUse={createFrom}
+              onEdit={openEdit}
+            />
           ))}
         </div>
-        {!loading && !templates.length && (
-          <p className="muted">No templates yet.</p>
+        {!loading && !pageTemplates.length && (
+          <p className="muted">No page templates yet.</p>
+        )}
+      </section>
+
+      <section className="section">
+        <h2>Form templates {loading ? '…' : `(${formTemplates.length})`}</h2>
+        <p className="muted">
+          Named request forms. On the Rates page, each Rate banner chooses one of these.
+        </p>
+        <div className="template-grid">
+          {formTemplates.map((t) => (
+            <TemplateCard
+              key={t.id}
+              t={t}
+              apiReady={apiReady}
+              onUse={createFrom}
+              onEdit={openEdit}
+            />
+          ))}
+        </div>
+        {!loading && !formTemplates.length && (
+          <p className="muted">No form templates yet.</p>
         )}
       </section>
     </div>
   )
 }
 
+function TemplateCard({ t, apiReady, onUse, onEdit }) {
+  const isForm = t.kind === 'form'
+  return (
+    <article className="template-card">
+      <h2>{t.name}</h2>
+      <p className="muted">{t.description || '—'}</p>
+      <p>
+        <span className="badge">{isForm ? 'Form' : 'Page'}</span>
+        {isForm && t.form_key ? <span className="badge">{t.form_key}</span> : (
+          <span className="badge">{t.theme || t.id}</span>
+        )}
+        {t.is_system ? <span className="badge">system</span> : null}
+      </p>
+      {!isForm && t.allowed_blocks?.length > 0 && (
+        <p className="muted small">
+          Blocks: {t.allowed_blocks.join(', ')}
+        </p>
+      )}
+      {isForm && t.form_key ? (
+        <p className="muted small">
+          Banner form_key: {t.form_key} · POST form=rates_{t.form_key}
+        </p>
+      ) : null}
+      <div className="row-actions">
+        {isForm ? (
+          <button type="button" className="secondary" disabled title="Attach on a Rate banner">
+            Use
+          </button>
+        ) : (
+          <button type="button" onClick={() => onUse(t)}>
+            Use
+          </button>
+        )}
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => onEdit(t)}
+          disabled={!apiReady}
+        >
+          Edit
+        </button>
+      </div>
+    </article>
+  )
+}
+
 function normalizeTemplate(raw) {
   const theme = raw.theme || raw.key || raw.id
+  const kind = raw.kind === 'form' ? 'form' : 'page'
+  const form_key =
+    raw.form_key ||
+    (kind === 'form' && String(raw.id || '').startsWith('form_')
+      ? String(raw.id).slice(5)
+      : '')
   let default_blocks = raw.default_blocks
   if (typeof default_blocks === 'string') {
     try {
@@ -423,6 +602,8 @@ function normalizeTemplate(raw) {
     id: raw.id || theme,
     theme,
     key: raw.key || theme,
+    kind,
+    form_key,
     name: raw.name || raw.label || raw.title || theme,
     label: raw.label || raw.name || '',
     description: raw.description || '',

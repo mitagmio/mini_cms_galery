@@ -1,18 +1,70 @@
 package cms
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const (
 	ThemeBAContent       = "ba_content"
 	ThemePanoramaGallery = "panorama_gallery"
 	ThemeTextContent     = "text_content"
 	ThemeLookbookGallery = "lookbook_gallery"
+	ThemeRatesContent    = "rates_content"
 
 	BlockComparisonSlider = "comparison_slider"
 	BlockGalleryImage     = "gallery_image"
 	BlockRichText         = "rich_text"
 	BlockContactForm      = "contact_form"
+	BlockRateBanner       = "rate_banner"
 )
+
+const (
+	RateKeyFashion   = "fashion"
+	RateKeyBeauty    = "beauty"
+	RateKeyLookbook  = "lookbook"
+	RateKeyEditorial = "editorial"
+	RateKeyProduct   = "product"
+	RateKeyManual    = "manual"
+)
+
+// RateFormKeys is the locked banner / overlay order.
+var RateFormKeys = []string{
+	RateKeyFashion, RateKeyBeauty, RateKeyLookbook,
+	RateKeyEditorial, RateKeyProduct, RateKeyManual,
+}
+
+const (
+	TemplateKindPage = "page"
+	TemplateKindForm = "form"
+)
+
+const (
+	FormTemplateFashion   = "form_fashion"
+	FormTemplateBeauty    = "form_beauty"
+	FormTemplateLookbook  = "form_lookbook"
+	FormTemplateEditorial = "form_editorial"
+	FormTemplateProduct   = "form_product"
+	FormTemplateManual    = "form_manual"
+)
+
+// FormTemplateIDs are named CMS form templates (not page engines).
+var FormTemplateIDs = []string{
+	FormTemplateFashion, FormTemplateBeauty, FormTemplateLookbook,
+	FormTemplateEditorial, FormTemplateProduct, FormTemplateManual,
+}
+
+func FormTemplateID(key string) string {
+	return "form_" + strings.ToLower(strings.TrimSpace(key))
+}
+
+func FormKeyFromTemplateID(id string) string {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if strings.HasPrefix(id, "form_") {
+		return strings.TrimPrefix(id, "form_")
+	}
+	return ""
+}
 
 type SiteSettings struct {
 	SiteName           string `json:"site_name"`
@@ -135,6 +187,11 @@ func (p *Page) NormalizeAliases() {
 	}
 }
 
+// IsPublished is true only for status=published (live GitHub Pages output).
+func (p Page) IsPublished() bool {
+	return strings.EqualFold(strings.TrimSpace(p.Status), "published")
+}
+
 type Block struct {
 	ID        string          `json:"id"`
 	PageID    string          `json:"page_id,omitempty"`
@@ -192,13 +249,16 @@ type PublishHistory struct {
 	Detail    json.RawMessage `json:"detail,omitempty"`
 }
 
-// Template is a reusable page blueprint. theme/key must be a generate engine
-// (ba_content | panorama_gallery | text_content | lookbook_gallery).
-// System rows use id == theme.
+// Template is a reusable blueprint. kind=page uses a generate engine
+// (ba_content | panorama_gallery | text_content | lookbook_gallery | rates_content).
+// kind=form is a named Rate overlay (Fashion, Beauty, …) — not a page engine.
+// System page rows use id == theme; system form rows use id == form_<key>.
 type Template struct {
 	ID            string          `json:"id"`
 	Theme         string          `json:"theme"`
 	Key           string          `json:"key,omitempty"` // alias of theme
+	Kind          string          `json:"kind"`
+	FormKey       string          `json:"form_key,omitempty"`
 	Name          string          `json:"name"`
 	Label         string          `json:"label,omitempty"` // alias of name
 	Description   string          `json:"description"`
@@ -223,10 +283,24 @@ func (t *Template) NormalizeAliases() {
 	if t.Label == "" && t.Name != "" {
 		t.Label = t.Name
 	}
+	if t.Kind == "" {
+		if ValidRateFormKey(FormKeyFromTemplateID(t.ID)) && t.ID == FormTemplateID(FormKeyFromTemplateID(t.ID)) {
+			t.Kind = TemplateKindForm
+		} else {
+			t.Kind = TemplateKindPage
+		}
+	}
+	if t.Kind == TemplateKindForm && t.FormKey == "" {
+		t.FormKey = FormKeyFromTemplateID(t.ID)
+	}
 	if t.AllowedBlocks == nil {
 		t.AllowedBlocks = []string{}
 	}
 	if len(t.DefaultBlocks) == 0 {
 		t.DefaultBlocks = json.RawMessage(`[]`)
 	}
+}
+
+func (t Template) IsForm() bool {
+	return t.Kind == TemplateKindForm
 }

@@ -11,9 +11,9 @@ Locked plan for Sheyanova Format-like constructor. Public site is static-only; C
 | 1 | Public site = static only → GitHub Pages (`sheyanova.art` / `www`). **Canonical:** `https://www.sheyanova.art` |
 | 2 | Admin + API on `api.sheyanova.art` via `nginx-app`. Public site is GitHub Pages only (no site nginx on this host) |
 | 3 | Go API owns CMS: SQLite `/data/cms.db` + uploads on disk; auth = `Authorization: Bearer ADMIN_TOKEN` |
-| 4 | Page templates: `ba_content`, `panorama_gallery`, `text_content`, `lookbook_gallery` |
-| 5 | Blocks: `comparison_slider`, `gallery_image`, `rich_text`, `contact_form` |
-| 6 | Generator in Go (`internal/generate`): draft → `/data/preview/`; publish → generate into `front/` + git push GHP repo |
+| 4 | Page templates: `ba_content`, `panorama_gallery`, `text_content`, `lookbook_gallery`, `rates_content` |
+| 5 | Blocks: `comparison_slider`, `gallery_image`, `rich_text`, `contact_form`, `rate_banner` |
+| 6 | Generator in Go (`internal/generate`): draft → `/data/preview/` (all pages); publish → **published pages only** into `front/` + git push GHP repo |
 | 7 | React admin: Format-like pages / media / settings / templates / preview / publish |
 | 8 | Contact form v1 = **mailto** (API contact endpoint later) |
 | 9 | Seed CMS from existing `front/` inventory |
@@ -44,11 +44,13 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 ### `templates` (page blueprints)
 | Field | Notes |
 |-------|--------|
-| `id` | system = theme key (`ba_content`…); custom = generated id |
-| `theme` / `key` | generate engine only: `ba_content` \| `panorama_gallery` \| `text_content` \| `lookbook_gallery` |
+| `kind` | `page` (generate engine) or `form` (named Rate overlay). Form rows are not page engines. |
+| `form_key` | form templates only: `fashion` \| `beauty` \| `lookbook` \| `editorial` \| `product` \| `manual` |
+| `id` | page system = theme key (`ba_content`…); form system = `form_<key>`; custom = generated id |
+| `theme` / `key` | generate engine only: `ba_content` \| `panorama_gallery` \| `text_content` \| `lookbook_gallery` \| `rates_content`. Form templates store `theme=rates_content` without becoming engines. |
 | `name` / `label`, `description` | admin display |
-| `allowed_blocks` | JSON string array of block types |
-| `default_blocks` | JSON array of `{type, data}` starters |
+| `allowed_blocks` | JSON string array of block types (empty for form templates) |
+| `default_blocks` | JSON array of `{type, data}` starters (empty for form templates) |
 | `is_system` | built-ins; theme/id locked, metadata editable |
 | `sort_order`, `created_at`, `updated_at` | |
 
@@ -56,11 +58,11 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | Field | Notes |
 |-------|--------|
 | `id`, `slug`, `title`, `nav_label` | slug `""` or special flag for homepage |
-| `template` | `ba_content` \| `panorama_gallery` \| `text_content` \| `lookbook_gallery` |
+| `template` | `ba_content` \| `panorama_gallery` \| `text_content` \| `lookbook_gallery` \| `rates_content` |
 | `status` | `draft` \| `published` (live site updates only on Publish) |
 | `is_homepage` | exactly one; today = BA `/` |
 | `meta_title`, `meta_description`, `canonical_path`, `og_image_media_id` | SEO overrides |
-| `settings_json` | page extras (`{}` default). Lookbook stores `shuffle_seed` for stable Fisher–Yates order |
+| `settings_json` | page extras (`{}` default). Lookbook stores `shuffle_seed`. Rates stores `banner_aspect` (`3:4` default) and optional `banner_min_height` (px) for the shared Rate banner grid |
 | `sort`, `updated_at` | |
 
 ### `blocks` (ordered per page)
@@ -74,6 +76,7 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | `gallery_image` | `{ media_id, alt, caption? }` |
 | `rich_text` | `{ html }` |
 | `contact_form` | `{ mailto, fields: [name,email,message] }` — static shell |
+| `rate_banner` | `{ form_template_id, form_key, media_id, alt, caption, start_from_label, price, currency }` — Rates tiles. `form_template_id` (e.g. `form_fashion`) chooses the named form template; `form_key` is derived / fallback |
 
 ### `media`
 - `id`, `filename`, `path` (under `/data/uploads/`), `mime`, `width`, `height`, `bytes`
@@ -116,8 +119,8 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | POST | `/api/admin/publish` | yes | generate → `front/` → git push; write history |
 | GET | `/api/admin/publish/history` | yes | |
 | POST | `/api/admin/seed` | yes | one-shot import from `front/` (MVP bootstrap) |
-| GET | `/api/admin/templates` | yes | list page blueprints (system + custom) |
-| POST | `/api/admin/templates` | yes | create custom blueprint (`theme` = generate engine) |
+| GET | `/api/admin/templates` | yes | list page + form templates (system + custom) |
+| POST | `/api/admin/templates` | yes | create custom **page** blueprint (`theme` = generate engine). Do not mint form engines as pages. |
 | GET/PATCH/PUT | `/api/admin/templates/{id}` | yes | read / update metadata + default blocks |
 
 **Remove:** `GET /api/sliders*`, old `/api/admin/photos`, `/api/admin/sliders`, slider-only preview.
@@ -162,7 +165,7 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | `/pages/:id/preview` | Desktop iframe → `/preview/{slug}/` |
 | `/media` | Upload, kind filter, grid, picker modal |
 | `/settings` | Site SEO, favicons, socials, mailto, GHP meta (read-only secrets) |
-| `/templates` | Starters: BA stack, panorama gallery, lookbook, text+contact |
+| `/templates` | Page blueprints + named form templates (Fashion, Beauty, …). Form templates cannot create a page. |
 | `/preview` | Full-site draft iframe |
 | `/publish` | Confirm → POST publish → poll status → SHA + live link |
 
@@ -191,6 +194,7 @@ Persistent nav: Dashboard · Pages · Media · Templates · Settings · Preview 
 | `panorama_gallery` | panorama theme.js + `gallery-harden` | N× `gallery_image` → `.asset.image` |
 | `lookbook_gallery` | masonry grid (`lookbook.css`) + overlay panorama (`lookbook-harden`, **not** unscoped `gallery-harden`); wheel via parameterized `gallery-wheel.js` | N× `gallery_image` (empty skipped). Order: Fisher–Yates at generate with stored `settings.shuffle_seed` |
 | `text_content` | content chrome (no panorama JS) | `rich_text`, `contact_form` |
+| `rates_content` | text chrome + `rates.css` / `rates.js`; 3×2 tiles | `rich_text`, `rate_banner`. Each banner chooses a **form template** (`form_template_id`). Overlay forms POST `/api/contact` with `form=rates_*`. Shared grid size: page `settings.banner_aspect` (default `3:4`). Preview includes drafts; publish writes **published pages only** (omit draft `/rates/`). |
 
 Canonical / og:url always under `https://www.sheyanova.art/…`.
 
@@ -207,6 +211,8 @@ Canonical / og:url always under `https://www.sheyanova.art/…`.
 | `contact` | `text_content` | rich_text + contact_form (mailto) |
 
 Lookbook (`lookbook_gallery`) is a **template only** — not seeded as a live page or nav item. Create from Admin → Templates / Pages when needed.
+
+Rates (`rates_content`, slug `rates`) is ensured on API boot as **draft**, with nav item RATES immediately before ABOUT (`visible=true` for preview). Publish omits it until status is flipped.
 
 **MVP choice:** homepage = BA content; keep `before-after` as published page with same blocks **or** nav-only link to `/` — implement as single homepage page + nav label “BEFORE | AFTER”. Do not emit duplicate flat `*.html` aliases; clean Wayback junk `front/https:` out of generator inputs.
 

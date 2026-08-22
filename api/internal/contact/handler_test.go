@@ -326,6 +326,28 @@ func TestRFC822Sanity(t *testing.T) {
 	if !strings.Contains(raw, "To: inbox@example.com") || !strings.Contains(raw, "Reply-To:") {
 		t.Fatalf("%s", raw)
 	}
+	if !strings.Contains(raw, "Content-Type: text/plain") {
+		t.Fatalf("plain-only mail should stay text/plain: %s", raw)
+	}
+	if strings.Contains(raw, "multipart/alternative") {
+		t.Fatal("plain-only must not be multipart")
+	}
+}
+
+func TestRFC822Multipart(t *testing.T) {
+	raw := rfc822(SMTPConfig{From: "noreply@example.com"}, Message{
+		To: "inbox@example.com", Subject: "Hi", Body: "Hello\nThere",
+		HTMLBody: `<p>Hello</p><a href="https://drive.example/folder">https://drive.example/folder</a>`,
+	})
+	if !strings.Contains(raw, "multipart/alternative") {
+		t.Fatalf("%s", raw)
+	}
+	if !strings.Contains(raw, "Content-Type: text/plain") || !strings.Contains(raw, "Content-Type: text/html") {
+		t.Fatalf("missing parts: %s", raw)
+	}
+	if !strings.Contains(raw, "https://drive.example/folder") {
+		t.Fatalf("url missing: %s", raw)
+	}
 }
 
 func TestLimiter(t *testing.T) {
@@ -349,4 +371,131 @@ func TestDecodeForm(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 	_ = io.Discard
+}
+
+func ratesFashionPayload() map[string]any {
+	p := validPayload()
+	delete(p, "message")
+	p["form"] = "rates_fashion"
+	p["Contact"] = "Email"
+	p["Imagelink"] = "https://drive.example/folder"
+	p["Total"] = 3
+	p["Final_delivery"] = "2026-09-01"
+	p["Retouch_level"] = "2"
+	p["Format"] = "JPG"
+	p["Profile"] = "Adobe RGB (1998)"
+	p["Brief"] = "Keep skin natural"
+	p["colorwork"] = []string{"Basic RAW Development (Camera RAW or Capture One)"}
+	return p
+}
+
+func TestSubmitRatesFashionSuccess(t *testing.T) {
+	fs := &fakeSender{}
+	h, _ := testHandler(t, fs)
+	rec := postJSON(h.Submit, "https://sheyanova.art", ratesFashionPayload(), nil)
+	if rec.Code != 200 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if fs.n != 1 {
+		t.Fatalf("sent=%d", fs.n)
+	}
+	if fs.last.ReplyTo != "ada@example.com" {
+		t.Fatalf("reply=%s", fs.last.ReplyTo)
+	}
+	if !strings.Contains(fs.last.Subject, "RATES / FASHION:") || !strings.Contains(fs.last.Subject, "Ada") {
+		t.Fatalf("subject=%s", fs.last.Subject)
+	}
+	body := fs.last.Body
+	if !strings.Contains(body, "New request from sheyanova.art RATES (FASHION)") {
+		t.Fatalf("intro missing: %s", body)
+	}
+	if !strings.Contains(body, "Images:") || !strings.Contains(body, "https://drive.example/folder") {
+		t.Fatalf("labeled image URL missing: %s", body)
+	}
+	if strings.Contains(body, "Imagelink:") {
+		t.Fatalf("want question label Images, not raw key: %s", body)
+	}
+	if !strings.Contains(body, "Retouch level: 2 — Removing obvious blemishes") {
+		t.Fatalf("retouch label missing: %s", body)
+	}
+	if !strings.Contains(body, "Color correction:") || !strings.Contains(body, "- Basic RAW Development") {
+		t.Fatalf("checkbox group missing: %s", body)
+	}
+	if !strings.Contains(fs.last.HTMLBody, `<a href="https://drive.example/folder">`) {
+		t.Fatalf("html link missing: %s", fs.last.HTMLBody)
+	}
+	if !strings.Contains(body, "Submitted from IP:") {
+		t.Fatalf("missing IP in body")
+	}
+}
+
+func TestSubmitContactStillRequiresMessage(t *testing.T) {
+	fs := &fakeSender{}
+	h, _ := testHandler(t, fs)
+	p := validPayload()
+	p["form"] = "contact"
+	p["message"] = ""
+	rec := postJSON(h.Submit, "https://sheyanova.art", p, nil)
+	if rec.Code != 400 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if fs.n != 0 {
+		t.Fatal("must not send")
+	}
+}
+
+func TestSubmitRatesDoesNotRequireMessage(t *testing.T) {
+	fs := &fakeSender{}
+	h, _ := testHandler(t, fs)
+	p := ratesFashionPayload()
+	p["message"] = ""
+	rec := postJSON(h.Submit, "https://sheyanova.art", p, nil)
+	if rec.Code != 200 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSubmitRatesUnknownForm(t *testing.T) {
+	fs := &fakeSender{}
+	h, _ := testHandler(t, fs)
+	p := validPayload()
+	p["form"] = "rates_cars"
+	rec := postJSON(h.Submit, "https://sheyanova.art", p, nil)
+	if rec.Code != 400 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if fs.n != 0 {
+		t.Fatal("must not send")
+	}
+}
+
+func TestSubmitRatesEmailAlias(t *testing.T) {
+	fs := &fakeSender{}
+	h, _ := testHandler(t, fs)
+	p := ratesFashionPayload()
+	delete(p, "email")
+	p["Email"] = "alias@example.com"
+	rec := postJSON(h.Submit, "https://sheyanova.art", p, nil)
+	if rec.Code != 200 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if fs.last.ReplyTo != "alias@example.com" {
+		t.Fatalf("reply=%s", fs.last.ReplyTo)
+	}
+}
+
+func TestSubmitRatesPhoneRequiredForWhatsApp(t *testing.T) {
+	fs := &fakeSender{}
+	h, _ := testHandler(t, fs)
+	p := ratesFashionPayload()
+	p["Contact"] = "WhatsApp"
+	rec := postJSON(h.Submit, "https://sheyanova.art", p, nil)
+	if rec.Code != 400 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	p["Phone"] = "+15551212"
+	rec = postJSON(h.Submit, "https://sheyanova.art", p, nil)
+	if rec.Code != 200 {
+		t.Fatalf("with phone code=%d body=%s", rec.Code, rec.Body.String())
+	}
 }
