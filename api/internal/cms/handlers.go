@@ -307,26 +307,7 @@ func (h *Handler) PageByID(w http.ResponseWriter, r *http.Request) {
 				patch["theme"] = t
 			}
 		}
-		if seo, ok := patch["seo"].(map[string]any); ok {
-			if v, ok := seo["meta_description"].(string); ok {
-				patch["meta_description"] = v
-			}
-			if v, ok := seo["description"].(string); ok && patch["meta_description"] == nil {
-				patch["meta_description"] = v
-			}
-			// Meta title overrides the page <title> when provided (same column for now).
-			if v, ok := seo["meta_title"].(string); ok && v != "" {
-				if _, hasTitle := patch["title"]; !hasTitle {
-					patch["title"] = v
-				}
-			}
-			if v, ok := seo["og_image"].(string); ok {
-				patch["og_image"] = v
-			}
-			if v, ok := seo["og_image_media_id"].(string); ok {
-				patch["og_image"] = v
-			}
-		}
+		FlattenSEOPatch(patch)
 		p, err := h.Store.PatchPage(id, patch)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {

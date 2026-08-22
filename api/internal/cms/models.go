@@ -45,7 +45,9 @@ type Page struct {
 	Status          string          `json:"status"`
 	SortOrder       int             `json:"sort_order"`
 	NavLabel        string          `json:"nav_label,omitempty"`
+	MetaTitle       string          `json:"meta_title"`
 	MetaDescription string          `json:"meta_description"`
+	CanonicalPath   string          `json:"canonical_path"`
 	OGImage         string          `json:"og_image"`
 	IsHomepage      bool            `json:"is_homepage"`
 	CreatedAt       string          `json:"created_at"`
@@ -56,11 +58,43 @@ type Page struct {
 }
 
 // PageSEO is the admin SEO inspector shape (nested under page.seo).
+// Empty MetaTitle means the public <title> falls back to page title; it is not filled in.
 type PageSEO struct {
-	MetaTitle       string `json:"meta_title,omitempty"`
-	MetaDescription string `json:"meta_description,omitempty"`
-	CanonicalPath   string `json:"canonical_path,omitempty"`
+	MetaTitle       string `json:"meta_title"`
+	MetaDescription string `json:"meta_description"`
+	CanonicalPath   string `json:"canonical_path"`
 	OGImageMediaID  string `json:"og_image_media_id,omitempty"`
+}
+
+// FlattenSEOPatch copies nested patch["seo"] into flat page columns without touching title.
+func FlattenSEOPatch(patch map[string]any) {
+	if patch == nil {
+		return
+	}
+	seo, ok := patch["seo"].(map[string]any)
+	if !ok || seo == nil {
+		return
+	}
+	if v, ok := seo["meta_title"].(string); ok {
+		patch["meta_title"] = v
+	}
+	if v, ok := seo["meta_description"].(string); ok {
+		patch["meta_description"] = v
+	}
+	if v, ok := seo["description"].(string); ok {
+		if _, exists := patch["meta_description"]; !exists {
+			patch["meta_description"] = v
+		}
+	}
+	if v, ok := seo["canonical_path"].(string); ok {
+		patch["canonical_path"] = v
+	}
+	if v, ok := seo["og_image"].(string); ok {
+		patch["og_image"] = v
+	}
+	if v, ok := seo["og_image_media_id"].(string); ok {
+		patch["og_image"] = v
+	}
 }
 
 // NormalizeAliases copies theme↔template so either name works.
@@ -74,21 +108,28 @@ func (p *Page) NormalizeAliases() {
 	if p.NavLabel == "" {
 		p.NavLabel = p.Title
 	}
-	// Always expose nested seo for admin (values live in flat columns today).
-	seo := p.SEO
-	if seo == nil {
-		seo = &PageSEO{}
+	// Nested seo from the client (create body) fills stored columns when those are empty.
+	if p.SEO != nil {
+		if p.MetaTitle == "" && p.SEO.MetaTitle != "" {
+			p.MetaTitle = p.SEO.MetaTitle
+		}
+		if p.MetaDescription == "" && p.SEO.MetaDescription != "" {
+			p.MetaDescription = p.SEO.MetaDescription
+		}
+		if p.CanonicalPath == "" && p.SEO.CanonicalPath != "" {
+			p.CanonicalPath = p.SEO.CanonicalPath
+		}
+		if p.OGImage == "" && p.SEO.OGImageMediaID != "" {
+			p.OGImage = p.SEO.OGImageMediaID
+		}
 	}
-	if seo.MetaTitle == "" {
-		seo.MetaTitle = p.Title
+	// Always expose nested seo from persisted columns. Never copy title into meta_title.
+	p.SEO = &PageSEO{
+		MetaTitle:       p.MetaTitle,
+		MetaDescription: p.MetaDescription,
+		CanonicalPath:   p.CanonicalPath,
+		OGImageMediaID:  p.OGImage,
 	}
-	if seo.MetaDescription == "" {
-		seo.MetaDescription = p.MetaDescription
-	}
-	if seo.OGImageMediaID == "" && p.OGImage != "" {
-		seo.OGImageMediaID = p.OGImage
-	}
-	p.SEO = seo
 	if len(p.Settings) == 0 || string(p.Settings) == "null" {
 		p.Settings = json.RawMessage(`{}`)
 	}

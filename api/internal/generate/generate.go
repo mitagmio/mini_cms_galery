@@ -296,6 +296,26 @@ func isExternalHref(h string) bool {
 		strings.HasPrefix(h, "mailto:") || strings.HasPrefix(h, "//") || strings.HasPrefix(h, "#")
 }
 
+func pageCanonicalURL(p cms.Page, canonBase string) string {
+	path := strings.TrimSpace(p.CanonicalPath)
+	if path == "" && p.SEO != nil {
+		path = strings.TrimSpace(p.SEO.CanonicalPath)
+	}
+	if path != "" {
+		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+			return path
+		}
+		if !strings.HasPrefix(path, "/") {
+			path = "/" + path
+		}
+		return canonBase + path
+	}
+	if p.IsHomepage {
+		return canonBase + "/"
+	}
+	return canonBase + "/" + strings.Trim(p.Slug, "/")
+}
+
 func (g *Generator) writePage(p cms.Page) error {
 	settings, err := g.Store.GetSettings()
 	if err != nil {
@@ -340,9 +360,13 @@ func (g *Generator) writePage(p cms.Page) error {
 		canonBase = g.Cfg.CanonicalBase
 	}
 	canonBase = strings.TrimRight(canonBase, "/")
-	canon := canonBase + "/"
-	if !p.IsHomepage {
-		canon = canonBase + "/" + p.Slug
+	canon := pageCanonicalURL(p, canonBase)
+	htmlTitle := strings.TrimSpace(p.MetaTitle)
+	if htmlTitle == "" && p.SEO != nil {
+		htmlTitle = strings.TrimSpace(p.SEO.MetaTitle)
+	}
+	if htmlTitle == "" {
+		htmlTitle = p.Title
 	}
 
 	active := p.Slug
@@ -373,6 +397,7 @@ func (g *Generator) writePage(p cms.Page) error {
 		"ActiveHref":      activeHref,
 		"MetaDescription": meta,
 		"CanonicalURL":    canon,
+		"HTMLTitle":       htmlTitle,
 		"RenderedBlocks":  blocks,
 		"FormatData":      formatData,
 		"ShuffleSeed":     shuffleSeed,

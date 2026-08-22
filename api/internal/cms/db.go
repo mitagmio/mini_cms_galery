@@ -71,7 +71,9 @@ CREATE TABLE IF NOT EXISTS pages (
   theme TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'draft',
   sort_order INTEGER NOT NULL DEFAULT 0,
+  meta_title TEXT NOT NULL DEFAULT '',
   meta_description TEXT NOT NULL DEFAULT '',
+  canonical_path TEXT NOT NULL DEFAULT '',
   og_image TEXT NOT NULL DEFAULT '',
   is_homepage INTEGER NOT NULL DEFAULT 0,
   settings_json TEXT NOT NULL DEFAULT '{}',
@@ -148,6 +150,12 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	}
 	if err := s.ensureColumn("pages", "settings_json", "TEXT NOT NULL DEFAULT '{}'"); err != nil {
 		return fmt.Errorf("migrate pages.settings_json: %w", err)
+	}
+	if err := s.ensureColumn("pages", "meta_title", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate pages.meta_title: %w", err)
+	}
+	if err := s.ensureColumn("pages", "canonical_path", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate pages.canonical_path: %w", err)
 	}
 	if err := s.BackfillContactEmail(); err != nil {
 		return fmt.Errorf("migrate backfill contact_email: %w", err)

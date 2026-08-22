@@ -71,12 +71,7 @@ export default function PageEditor() {
           template: 'ba_content',
           is_homepage: false,
           ...p,
-          seo: {
-            meta_title: p.seo?.meta_title || p.title || '',
-            meta_description: p.seo?.meta_description || p.meta_description || '',
-            canonical_path: p.seo?.canonical_path || '',
-            og_image_media_id: p.seo?.og_image_media_id || p.og_image || '',
-          },
+          seo: hydrateSeo(p),
         }
         setPage(nextPage)
         const bl = normalizeBlocks(bRes.blocks || bRes.items || p.blocks || [])
@@ -209,14 +204,7 @@ export default function PageEditor() {
                 ...prev,
                 ...p,
                 settings: p.settings || {},
-            seo: {
-                  meta_title: p.seo?.meta_title || p.title || prev.seo?.meta_title || '',
-                  meta_description:
-                    p.seo?.meta_description || p.meta_description || prev.seo?.meta_description || '',
-                  canonical_path: p.seo?.canonical_path || prev.seo?.canonical_path || '',
-                  og_image_media_id:
-                    p.seo?.og_image_media_id || p.og_image || prev.seo?.og_image_media_id || '',
-                },
+                seo: hydrateSeo(p),
               }
             : prev,
         )
@@ -468,22 +456,23 @@ export default function PageEditor() {
               <label>
                 Meta title
                 <input
-                  value={page.seo?.meta_title || ''}
+                  value={page.seo?.meta_title ?? ''}
                   onChange={(e) => updateSeo({ meta_title: e.target.value })}
+                  placeholder={page.title || 'Uses page title if empty'}
                 />
               </label>
               <label>
                 Meta description
                 <textarea
                   rows={3}
-                  value={page.seo?.meta_description || ''}
+                  value={page.seo?.meta_description ?? ''}
                   onChange={(e) => updateSeo({ meta_description: e.target.value })}
                 />
               </label>
               <label>
                 Canonical path
                 <input
-                  value={page.seo?.canonical_path || ''}
+                  value={page.seo?.canonical_path ?? ''}
                   onChange={(e) => updateSeo({ canonical_path: e.target.value })}
                   placeholder={`/${page.slug || ''}`}
                 />
@@ -566,6 +555,16 @@ export default function PageEditor() {
       />
     </div>
   )
+}
+
+function hydrateSeo(p) {
+  const seo = p?.seo || {}
+  return {
+    meta_title: seo.meta_title ?? p?.meta_title ?? '',
+    meta_description: seo.meta_description ?? p?.meta_description ?? '',
+    canonical_path: seo.canonical_path ?? p?.canonical_path ?? '',
+    og_image_media_id: seo.og_image_media_id || p?.og_image || '',
+  }
 }
 
 function normalizeBlocks(list) {

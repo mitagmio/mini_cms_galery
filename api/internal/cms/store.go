@@ -125,10 +125,12 @@ func (s *Store) firstContactMailto() (string, error) {
 	return "", rows.Err()
 }
 
+const pageSelectCols = `id, slug, title, theme, status, sort_order, meta_title, meta_description,
+       canonical_path, og_image, is_homepage, settings_json, created_at, updated_at`
+
 func (s *Store) ListPages() ([]Page, error) {
 	rows, err := s.db.Query(`
-SELECT id, slug, title, theme, status, sort_order, meta_description, og_image,
-       is_homepage, settings_json, created_at, updated_at
+SELECT ` + pageSelectCols + `
 FROM pages ORDER BY sort_order ASC, title ASC`)
 	if err != nil {
 		return nil, err
@@ -147,8 +149,7 @@ FROM pages ORDER BY sort_order ASC, title ASC`)
 
 func (s *Store) GetPage(id string) (Page, error) {
 	p, err := scanPage(s.db.QueryRow(`
-SELECT id, slug, title, theme, status, sort_order, meta_description, og_image,
-       is_homepage, settings_json, created_at, updated_at
+SELECT `+pageSelectCols+`
 FROM pages WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Page{}, ErrNotFound
@@ -173,7 +174,8 @@ func scanPage(scanner interface {
 	var settings string
 	if err := scanner.Scan(
 		&p.ID, &p.Slug, &p.Title, &p.Theme, &p.Status, &p.SortOrder,
-		&p.MetaDescription, &p.OGImage, &home, &settings, &p.CreatedAt, &p.UpdatedAt,
+		&p.MetaTitle, &p.MetaDescription, &p.CanonicalPath, &p.OGImage, &home, &settings,
+		&p.CreatedAt, &p.UpdatedAt,
 	); err != nil {
 		return Page{}, err
 	}
@@ -211,9 +213,9 @@ func (s *Store) CreatePage(p Page) (Page, error) {
 		}
 	}
 	_, err := s.db.Exec(`
-INSERT INTO pages (id, slug, title, theme, status, sort_order, meta_description, og_image, is_homepage, settings_json, created_at, updated_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-		p.ID, p.Slug, p.Title, p.Theme, p.Status, p.SortOrder, p.MetaDescription, p.OGImage, home, string(p.Settings), p.CreatedAt, p.UpdatedAt)
+INSERT INTO pages (id, slug, title, theme, status, sort_order, meta_title, meta_description, canonical_path, og_image, is_homepage, settings_json, created_at, updated_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		p.ID, p.Slug, p.Title, p.Theme, p.Status, p.SortOrder, p.MetaTitle, p.MetaDescription, p.CanonicalPath, p.OGImage, home, string(p.Settings), p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		return Page{}, err
 	}
@@ -230,6 +232,7 @@ func (s *Store) PatchPage(id string, patch map[string]any) (Page, error) {
 	if err != nil {
 		return Page{}, err
 	}
+	FlattenSEOPatch(patch)
 	if v, ok := patch["slug"].(string); ok {
 		cur.Slug = v
 	}
@@ -245,8 +248,14 @@ func (s *Store) PatchPage(id string, patch map[string]any) (Page, error) {
 	if v, ok := patch["status"].(string); ok {
 		cur.Status = v
 	}
+	if v, ok := patch["meta_title"].(string); ok {
+		cur.MetaTitle = v
+	}
 	if v, ok := patch["meta_description"].(string); ok {
 		cur.MetaDescription = v
+	}
+	if v, ok := patch["canonical_path"].(string); ok {
+		cur.CanonicalPath = v
 	}
 	if v, ok := patch["og_image"].(string); ok {
 		cur.OGImage = v
@@ -269,10 +278,10 @@ func (s *Store) PatchPage(id string, patch map[string]any) (Page, error) {
 		}
 	}
 	_, err = s.db.Exec(`
-UPDATE pages SET slug=?, title=?, theme=?, status=?, sort_order=?, meta_description=?,
-  og_image=?, is_homepage=?, settings_json=?, updated_at=? WHERE id=?`,
-		cur.Slug, cur.Title, cur.Theme, cur.Status, cur.SortOrder, cur.MetaDescription,
-		cur.OGImage, home, string(cur.Settings), cur.UpdatedAt, id)
+UPDATE pages SET slug=?, title=?, theme=?, status=?, sort_order=?, meta_title=?, meta_description=?,
+  canonical_path=?, og_image=?, is_homepage=?, settings_json=?, updated_at=? WHERE id=?`,
+		cur.Slug, cur.Title, cur.Theme, cur.Status, cur.SortOrder, cur.MetaTitle, cur.MetaDescription,
+		cur.CanonicalPath, cur.OGImage, home, string(cur.Settings), cur.UpdatedAt, id)
 	if err != nil {
 		return Page{}, err
 	}
