@@ -128,7 +128,7 @@ func (s *Store) firstContactMailto() (string, error) {
 func (s *Store) ListPages() ([]Page, error) {
 	rows, err := s.db.Query(`
 SELECT id, slug, title, theme, status, sort_order, meta_description, og_image,
-       is_homepage, created_at, updated_at
+       is_homepage, settings_json, created_at, updated_at
 FROM pages ORDER BY sort_order ASC, title ASC`)
 	if err != nil {
 		return nil, err
@@ -136,41 +136,49 @@ FROM pages ORDER BY sort_order ASC, title ASC`)
 	defer rows.Close()
 	out := make([]Page, 0)
 	for rows.Next() {
-		var p Page
-		var home int
-		if err := rows.Scan(&p.ID, &p.Slug, &p.Title, &p.Theme, &p.Status, &p.SortOrder,
-			&p.MetaDescription, &p.OGImage, &home, &p.CreatedAt, &p.UpdatedAt); err != nil {
+		p, err := scanPage(rows)
+		if err != nil {
 			return nil, err
 		}
-		p.IsHomepage = home == 1
-		p.NormalizeAliases()
 		out = append(out, p)
 	}
 	return out, rows.Err()
 }
 
 func (s *Store) GetPage(id string) (Page, error) {
-	var p Page
-	var home int
-	err := s.db.QueryRow(`
+	p, err := scanPage(s.db.QueryRow(`
 SELECT id, slug, title, theme, status, sort_order, meta_description, og_image,
-       is_homepage, created_at, updated_at
-FROM pages WHERE id = ?`, id).Scan(
-		&p.ID, &p.Slug, &p.Title, &p.Theme, &p.Status, &p.SortOrder,
-		&p.MetaDescription, &p.OGImage, &home, &p.CreatedAt, &p.UpdatedAt,
-	)
+       is_homepage, settings_json, created_at, updated_at
+FROM pages WHERE id = ?`, id))
 	if errors.Is(err, sql.ErrNoRows) {
 		return Page{}, ErrNotFound
 	}
 	if err != nil {
 		return Page{}, err
 	}
-	p.IsHomepage = home == 1
 	blocks, err := s.ListBlocks(id)
 	if err != nil {
 		return Page{}, err
 	}
 	p.Blocks = blocks
+	p.NormalizeAliases()
+	return p, nil
+}
+
+func scanPage(scanner interface {
+	Scan(dest ...any) error
+}) (Page, error) {
+	var p Page
+	var home int
+	var settings string
+	if err := scanner.Scan(
+		&p.ID, &p.Slug, &p.Title, &p.Theme, &p.Status, &p.SortOrder,
+		&p.MetaDescription, &p.OGImage, &home, &settings, &p.CreatedAt, &p.UpdatedAt,
+	); err != nil {
+		return Page{}, err
+	}
+	p.IsHomepage = home == 1
+	p.Settings = json.RawMessage(settings)
 	p.NormalizeAliases()
 	return p, nil
 }
@@ -189,6 +197,9 @@ func (s *Store) CreatePage(p Page) (Page, error) {
 	if !ValidTheme(p.Theme) {
 		return Page{}, fmt.Errorf("invalid theme")
 	}
+	if len(p.Settings) == 0 || string(p.Settings) == "null" {
+		p.Settings = json.RawMessage(`{}`)
+	}
 	now := Now()
 	p.CreatedAt = now
 	p.UpdatedAt = now
@@ -200,9 +211,9 @@ func (s *Store) CreatePage(p Page) (Page, error) {
 		}
 	}
 	_, err := s.db.Exec(`
-INSERT INTO pages (id, slug, title, theme, status, sort_order, meta_description, og_image, is_homepage, created_at, updated_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		p.ID, p.Slug, p.Title, p.Theme, p.Status, p.SortOrder, p.MetaDescription, p.OGImage, home, p.CreatedAt, p.UpdatedAt)
+INSERT INTO pages (id, slug, title, theme, status, sort_order, meta_description, og_image, is_homepage, settings_json, created_at, updated_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+		p.ID, p.Slug, p.Title, p.Theme, p.Status, p.SortOrder, p.MetaDescription, p.OGImage, home, string(p.Settings), p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		return Page{}, err
 	}
@@ -246,6 +257,9 @@ func (s *Store) PatchPage(id string, patch map[string]any) (Page, error) {
 	if v, ok := patch["is_homepage"].(bool); ok {
 		cur.IsHomepage = v
 	}
+	if raw, ok := patch["settings"]; ok {
+		cur.Settings = MergeSettings(cur.Settings, raw)
+	}
 	cur.UpdatedAt = Now()
 	home := 0
 	if cur.IsHomepage {
@@ -256,9 +270,9 @@ func (s *Store) PatchPage(id string, patch map[string]any) (Page, error) {
 	}
 	_, err = s.db.Exec(`
 UPDATE pages SET slug=?, title=?, theme=?, status=?, sort_order=?, meta_description=?,
-  og_image=?, is_homepage=?, updated_at=? WHERE id=?`,
+  og_image=?, is_homepage=?, settings_json=?, updated_at=? WHERE id=?`,
 		cur.Slug, cur.Title, cur.Theme, cur.Status, cur.SortOrder, cur.MetaDescription,
-		cur.OGImage, home, cur.UpdatedAt, id)
+		cur.OGImage, home, string(cur.Settings), cur.UpdatedAt, id)
 	if err != nil {
 		return Page{}, err
 	}
@@ -268,6 +282,17 @@ UPDATE pages SET slug=?, title=?, theme=?, status=?, sort_order=?, meta_descript
 	}
 	_ = s.SyncNavForPage(out)
 	return out, nil
+}
+
+// MergePageSettings overlays keys into pages.settings_json without touching nav.
+func (s *Store) MergePageSettings(id string, patch map[string]any) error {
+	cur, err := s.GetPage(id)
+	if err != nil {
+		return err
+	}
+	raw := MergeSettings(cur.Settings, patch)
+	_, err = s.db.Exec(`UPDATE pages SET settings_json=?, updated_at=? WHERE id=?`, string(raw), Now(), id)
+	return err
 }
 
 // SyncNavForPage updates menu label/href for all nav rows linked to this page.

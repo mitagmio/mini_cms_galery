@@ -11,7 +11,7 @@ Locked plan for Sheyanova Format-like constructor. Public site is static-only; C
 | 1 | Public site = static only → GitHub Pages (`sheyanova.art` / `www`). **Canonical:** `https://www.sheyanova.art` |
 | 2 | Admin + API on `api.sheyanova.art` via `nginx-app`. Public site is GitHub Pages only (no site nginx on this host) |
 | 3 | Go API owns CMS: SQLite `/data/cms.db` + uploads on disk; auth = `Authorization: Bearer ADMIN_TOKEN` |
-| 4 | Page templates: `ba_content`, `panorama_gallery`, `text_content` |
+| 4 | Page templates: `ba_content`, `panorama_gallery`, `text_content`, `lookbook_gallery` |
 | 5 | Blocks: `comparison_slider`, `gallery_image`, `rich_text`, `contact_form` |
 | 6 | Generator in Go (`internal/generate`): draft → `/data/preview/`; publish → generate into `front/` + git push GHP repo |
 | 7 | React admin: Format-like pages / media / settings / templates / preview / publish |
@@ -45,7 +45,7 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | Field | Notes |
 |-------|--------|
 | `id` | system = theme key (`ba_content`…); custom = generated id |
-| `theme` / `key` | generate engine only: `ba_content` \| `panorama_gallery` \| `text_content` |
+| `theme` / `key` | generate engine only: `ba_content` \| `panorama_gallery` \| `text_content` \| `lookbook_gallery` |
 | `name` / `label`, `description` | admin display |
 | `allowed_blocks` | JSON string array of block types |
 | `default_blocks` | JSON array of `{type, data}` starters |
@@ -56,10 +56,11 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | Field | Notes |
 |-------|--------|
 | `id`, `slug`, `title`, `nav_label` | slug `""` or special flag for homepage |
-| `template` | `ba_content` \| `panorama_gallery` \| `text_content` |
+| `template` | `ba_content` \| `panorama_gallery` \| `text_content` \| `lookbook_gallery` |
 | `status` | `draft` \| `published` (live site updates only on Publish) |
 | `is_homepage` | exactly one; today = BA `/` |
 | `meta_title`, `meta_description`, `canonical_path`, `og_image_media_id` | SEO overrides |
+| `settings_json` | page extras (`{}` default). Lookbook stores `shuffle_seed` for stable Fisher–Yates order |
 | `sort`, `updated_at` | |
 
 ### `blocks` (ordered per page)
@@ -161,7 +162,7 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 | `/pages/:id/preview` | Desktop iframe → `/preview/{slug}/` |
 | `/media` | Upload, kind filter, grid, picker modal |
 | `/settings` | Site SEO, favicons, socials, mailto, GHP meta (read-only secrets) |
-| `/templates` | Starters: BA stack, panorama gallery, text+contact |
+| `/templates` | Starters: BA stack, panorama gallery, lookbook, text+contact |
 | `/preview` | Full-site draft iframe |
 | `/publish` | Confirm → POST publish → poll status → SHA + live link |
 
@@ -188,6 +189,7 @@ Persistent nav: Dashboard · Pages · Media · Templates · Settings · Preview 
 |----------|----------------|--------|
 | `ba_content` | BA chrome + comparison CSS/JS + `ba-harden` | N× `comparison_slider` |
 | `panorama_gallery` | panorama theme.js + `gallery-harden` | N× `gallery_image` → `.asset.image` |
+| `lookbook_gallery` | masonry grid (`lookbook.css`) + overlay panorama (`lookbook-harden`, **not** unscoped `gallery-harden`); wheel via parameterized `gallery-wheel.js` | N× `gallery_image` (empty skipped). Order: Fisher–Yates at generate with stored `settings.shuffle_seed` |
 | `text_content` | content chrome (no panorama JS) | `rich_text`, `contact_form` |
 
 Canonical / og:url always under `https://www.sheyanova.art/…`.
@@ -203,6 +205,8 @@ Canonical / og:url always under `https://www.sheyanova.art/…`.
 | `editorial`, `editorial-i`, `editorial-ii`, `editorial-3`, `editorial-iv` | `panorama_gallery` | gallery assets |
 | `fashion`, `product`, `about` | `panorama_gallery` | gallery assets |
 | `contact` | `text_content` | rich_text + contact_form (mailto) |
+
+Lookbook (`lookbook_gallery`) is a **template only** — not seeded as a live page or nav item. Create from Admin → Templates / Pages when needed.
 
 **MVP choice:** homepage = BA content; keep `before-after` as published page with same blocks **or** nav-only link to `/` — implement as single homepage page + nav label “BEFORE | AFTER”. Do not emit duplicate flat `*.html` aliases; clean Wayback junk `front/https:` out of generator inputs.
 
@@ -234,7 +238,7 @@ Import path: parse existing HTML → media rows (from `assets/cdn/`) + blocks �
 
 **In**
 - SQLite CMS + media uploads + Bearer auth
-- Three templates, four block types
+- Four templates, four block types
 - Seed from current pages
 - Generate draft preview + Publish to GHP
 - Admin screens listed above

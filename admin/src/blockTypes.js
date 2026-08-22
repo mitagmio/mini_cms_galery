@@ -12,6 +12,12 @@ export const TEMPLATES = [
     starterBlocks: [],
   },
   {
+    id: 'lookbook_gallery',
+    label: 'Lookbook',
+    description: 'Masonry photo grid; click opens the panorama overlay.',
+    starterBlocks: [],
+  },
+  {
     id: 'text_content',
     label: 'Text / blank',
     description: 'Rich text and optional contact form.',
@@ -20,6 +26,15 @@ export const TEMPLATES = [
     ],
   },
 ]
+
+export const SYSTEM_THEME_IDS = TEMPLATES.map((t) => t.id)
+
+export const ALLOWED_BLOCKS_BY_THEME = {
+  ba_content: ['comparison_slider'],
+  panorama_gallery: ['gallery_image'],
+  lookbook_gallery: ['gallery_image'],
+  text_content: ['rich_text', 'contact_form'],
+}
 
 export const BLOCK_PALETTE = [
   {
@@ -35,7 +50,7 @@ export const BLOCK_PALETTE = [
   {
     type: 'gallery_image',
     label: 'Gallery image',
-    hint: 'One image in a panorama strip',
+    hint: 'One image in a panorama strip or lookbook',
     defaultData: () => ({
       media_id: null,
       alt: '',
@@ -70,6 +85,25 @@ export function newBlock(type) {
   }
 }
 
+export const DEFAULT_BLOCKS_BY_THEME = {
+  ba_content: () => [
+    { type: 'comparison_slider', data: newBlock('comparison_slider').data },
+    { type: 'comparison_slider', data: newBlock('comparison_slider').data },
+  ],
+  panorama_gallery: () => [
+    { type: 'gallery_image', data: newBlock('gallery_image').data },
+    { type: 'gallery_image', data: newBlock('gallery_image').data },
+    { type: 'gallery_image', data: newBlock('gallery_image').data },
+  ],
+  lookbook_gallery: () => [
+    { type: 'gallery_image', data: newBlock('gallery_image').data },
+    { type: 'gallery_image', data: newBlock('gallery_image').data },
+    { type: 'gallery_image', data: newBlock('gallery_image').data },
+    { type: 'gallery_image', data: newBlock('gallery_image').data },
+  ],
+  text_content: () => [{ type: 'rich_text', data: newBlock('rich_text').data }],
+}
+
 export function templateLabel(id) {
   return TEMPLATES.find((t) => t.id === id)?.label || id || '—'
 }
@@ -77,4 +111,8 @@ export function templateLabel(id) {
 export function mediaUrl(item) {
   if (!item) return ''
   return item.url || item.url_path || item.path || ''
+}
+
+export function allowedBlocksForTheme(theme) {
+  return ALLOWED_BLOCKS_BY_THEME[theme] || null
 }

@@ -36,7 +36,9 @@ type Generator struct {
 }
 
 type renderedBlock struct {
-	HTML template.HTML
+	HTML     template.HTML
+	ImageSrc string
+	Alt      string
 }
 
 func New(store *cms.Store, cfg Config) (*Generator, error) {
@@ -150,6 +152,9 @@ func (g *Generator) buildFormatData(p cms.Page) template.JS {
 		}
 		var data map[string]any
 		_ = json.Unmarshal(b.Data, &data)
+		if !galleryDataHasMedia(data) {
+			continue
+		}
 		w, h := 1600, 2400
 		if data != nil {
 			mid, _ := data["media_id"].(string)
@@ -300,7 +305,23 @@ func (g *Generator) writePage(p cms.Page) error {
 	if err != nil {
 		return err
 	}
-	blocks, mediaUsed, err := g.renderBlocks(p)
+	name := p.Theme
+	if name == "" {
+		name = cms.ThemeTextContent
+	}
+
+	shuffleSeed := int64(0)
+	renderPage := p
+	if name == cms.ThemeLookbookGallery {
+		seed, err := g.ensureLookbookShuffleSeed(&p)
+		if err != nil {
+			return err
+		}
+		shuffleSeed = seed
+		renderPage.Blocks = permuteGalleryBlocks(p.Blocks, seed)
+	}
+
+	blocks, mediaUsed, err := g.renderBlocks(renderPage)
 	if err != nil {
 		return err
 	}
@@ -330,14 +351,9 @@ func (g *Generator) writePage(p cms.Page) error {
 	}
 	activeHref := g.sitePath("/" + active)
 
-	name := p.Theme
-	if name == "" {
-		name = cms.ThemeTextContent
-	}
-
 	formatData := template.JS(`{"page":{"type":"gallery","layout":"vertical","title":null,"assets":[]},"theme":{"gallery_image_padding":"Normal","listing_thumbnail_size":"Auto"}}`)
-	if name == cms.ThemePanoramaGallery {
-		formatData = g.buildFormatData(p)
+	if name == cms.ThemePanoramaGallery || name == cms.ThemeLookbookGallery {
+		formatData = g.buildFormatData(renderPage)
 	}
 
 	view := map[string]any{
@@ -359,6 +375,7 @@ func (g *Generator) writePage(p cms.Page) error {
 		"CanonicalURL":    canon,
 		"RenderedBlocks":  blocks,
 		"FormatData":      formatData,
+		"ShuffleSeed":     shuffleSeed,
 	}
 
 	var buf strings.Builder
@@ -477,6 +494,10 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			url, _ := data["url"].(string)
 			alt, _ := data["alt"].(string)
 			src, _ := resolve(mid, url)
+			if strings.TrimSpace(src) == "" {
+				continue
+			}
+			imgSrc := pathURL(src)
 			html = fmt.Sprintf(`
 <div class="asset image">
 <div class="wrap">
@@ -485,7 +506,9 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 <img alt="%s" class="lazyload" data-pin-nopin="true" loading="eager" src="%s" data-src="%s"/>
 </div>
 </div>
-</div>`, template.HTMLEscapeString(alt), pathURL(src), pathURL(src))
+</div>`, template.HTMLEscapeString(alt), imgSrc, imgSrc)
+			out = append(out, renderedBlock{HTML: template.HTML(html), ImageSrc: imgSrc, Alt: alt})
+			continue
 
 		case cms.BlockRichText:
 			raw, _ := data["html"].(string)

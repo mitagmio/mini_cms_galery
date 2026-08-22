@@ -1,9 +1,9 @@
-{{define "panorama_gallery"}}
+{{define "lookbook_gallery"}}
 <!DOCTYPE html>
-<html lang="en" class="gallery win">
+<html lang="en">
 <head>
 <meta charset="utf-8"/>
-<meta content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width" name="viewport"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
 <title>{{.Page.Title}} - {{.Settings.SiteName}}</title>
 <meta name="description" content="{{.MetaDescription}}"/>
 <meta content="noai, noimageai" name="robots"/>
@@ -13,10 +13,10 @@
 <link href="/static/theme_api/vendor/webtype_fonts.min-a27384810945198dd373502796bfbada62cc8409c49831a8778ac894e78f7749.css" media="screen" rel="stylesheet"/>
 <link href="/static/theme_api/v1/protected_images-6cc002aad772e14af53bbbb966d0611491b39e25fc8fba42e94598f98d535828.css" media="screen" rel="stylesheet"/>
 <link href="/assets/theme/stylesheet.css?v=7" media="screen" rel="stylesheet"/>
-<link href="/assets/theme/gallery-harden.css?v=8" media="screen" rel="stylesheet"/>
-<style>#content{opacity:1;}</style>
+<link href="/assets/theme/lookbook-harden.css?v=3" media="screen" rel="stylesheet"/>
+<link href="/assets/theme/lookbook.css?v=3" media="screen" rel="stylesheet"/>
 </head>
-<body class="gallery gallery_page">
+<body class="lookbook simple simple_page" data-shuffle-seed="{{.ShuffleSeed}}">
 <div class="page clearfix">
 <div class="theme_header static clearfix" id="themeHeader">
 <div class="padding-div">
@@ -26,6 +26,26 @@
 {{template "nav" .}}
 </div>
 </div>
+<main class="lookbook-main">
+<div class="lookbook-grid" id="lookbook-grid">
+{{- range $i, $b := .RenderedBlocks }}
+<button type="button" class="lookbook-tile" data-index="{{$i}}" aria-label="Open photo {{$i}}">
+<img src="{{$b.ImageSrc}}" alt="{{$b.Alt}}" loading="lazy"/>
+</button>
+{{- end }}
+</div>
+</main>
+</div>
+<div class="gallery" id="lookbook-overlay" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-label="Gallery">
+<button type="button" class="lookbook-close" aria-label="Close gallery">
+<span aria-hidden="true">&times;</span>
+</button>
+<button type="button" class="lookbook-nav lookbook-nav-prev" aria-label="Previous photo">
+<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15.5 4.5L8 12l7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button>
+<button type="button" class="lookbook-nav lookbook-nav-next" aria-label="Next photo">
+<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.5 4.5L16 12l-7.5 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+</button>
 <div id="content">
 <div class="gallery_content">
 {{template "gallery_strip" .}}
@@ -39,25 +59,8 @@ window._4ORMAT_DATA = {{.FormatData}};
 <script src="/assets/theme/panorama/javascripts/jquery.mousewheel.js?v=passive1"></script>
 <script src="/assets/theme/panorama/javascripts/jquery.jscrollpane.js"></script>
 <script src="/assets/theme/panorama/javascripts/theme.js"></script>
-<script src="/assets/theme/panorama/javascripts/gallery-wheel.js?v=3"></script>
-<script>
-(function(){
-  /* Format only enables wheel→horizontal when html has class "win". Force it. */
-  document.documentElement.classList.add('win');
-  function reveal(){
-    var c=document.getElementById('content');
-    if(c){c.style.opacity='1';c.style.visibility='visible';}
-    document.querySelectorAll('.asset.image').forEach(function(el){el.classList.remove('loading');el.style.opacity='1';});
-    document.querySelectorAll('.asset img').forEach(function(img){img.style.opacity='1';});
-    if(window.jQuery){
-      try{window.jQuery(window).trigger('resize');}catch(e){}
-    }
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',reveal);
-  else reveal();
-  window.addEventListener('load',reveal);
-})();
-</script>
+<script src="/assets/theme/panorama/javascripts/gallery-wheel.js?v=4"></script>
+<script src="/assets/theme/lookbook.js?v=2"></script>
 </body>
 </html>
 {{end}}

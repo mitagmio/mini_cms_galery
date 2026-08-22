@@ -6,6 +6,7 @@ const (
 	ThemeBAContent       = "ba_content"
 	ThemePanoramaGallery = "panorama_gallery"
 	ThemeTextContent     = "text_content"
+	ThemeLookbookGallery = "lookbook_gallery"
 
 	BlockComparisonSlider = "comparison_slider"
 	BlockGalleryImage     = "gallery_image"
@@ -36,21 +37,22 @@ type SiteSettings struct {
 }
 
 type Page struct {
-	ID              string   `json:"id"`
-	Slug            string   `json:"slug"`
-	Title           string   `json:"title"`
-	Theme           string   `json:"theme"`
-	Template        string   `json:"template,omitempty"` // alias of theme for admin
-	Status          string   `json:"status"`
-	SortOrder       int      `json:"sort_order"`
-	NavLabel        string   `json:"nav_label,omitempty"`
-	MetaDescription string   `json:"meta_description"`
-	OGImage         string   `json:"og_image"`
-	IsHomepage      bool     `json:"is_homepage"`
-	CreatedAt       string   `json:"created_at"`
-	UpdatedAt       string   `json:"updated_at"`
-	Blocks          []Block  `json:"blocks,omitempty"`
-	SEO             *PageSEO `json:"seo,omitempty"`
+	ID              string          `json:"id"`
+	Slug            string          `json:"slug"`
+	Title           string          `json:"title"`
+	Theme           string          `json:"theme"`
+	Template        string          `json:"template,omitempty"` // alias of theme for admin
+	Status          string          `json:"status"`
+	SortOrder       int             `json:"sort_order"`
+	NavLabel        string          `json:"nav_label,omitempty"`
+	MetaDescription string          `json:"meta_description"`
+	OGImage         string          `json:"og_image"`
+	IsHomepage      bool            `json:"is_homepage"`
+	CreatedAt       string          `json:"created_at"`
+	UpdatedAt       string          `json:"updated_at"`
+	Blocks          []Block         `json:"blocks,omitempty"`
+	SEO             *PageSEO        `json:"seo,omitempty"`
+	Settings        json.RawMessage `json:"settings"`
 }
 
 // PageSEO is the admin SEO inspector shape (nested under page.seo).
@@ -87,6 +89,9 @@ func (p *Page) NormalizeAliases() {
 		seo.OGImageMediaID = p.OGImage
 	}
 	p.SEO = seo
+	if len(p.Settings) == 0 || string(p.Settings) == "null" {
+		p.Settings = json.RawMessage(`{}`)
+	}
 }
 
 type Block struct {
@@ -147,7 +152,8 @@ type PublishHistory struct {
 }
 
 // Template is a reusable page blueprint. theme/key must be a generate engine
-// (ba_content | panorama_gallery | text_content). System rows use id == theme.
+// (ba_content | panorama_gallery | text_content | lookbook_gallery).
+// System rows use id == theme.
 type Template struct {
 	ID            string          `json:"id"`
 	Theme         string          `json:"theme"`

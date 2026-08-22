@@ -71,7 +71,7 @@ func (s *Store) CreateTemplate(t Template) (Template, error) {
 		return Template{}, fmt.Errorf("theme required")
 	}
 	if !ValidTheme(t.Theme) {
-		return Template{}, fmt.Errorf("invalid theme: must be ba_content, panorama_gallery, or text_content")
+		return Template{}, fmt.Errorf("invalid theme: must be %s", ValidThemeList())
 	}
 	if err := validateAllowedBlocks(t.AllowedBlocks); err != nil {
 		return Template{}, err
@@ -90,11 +90,8 @@ func (s *Store) CreateTemplate(t Template) (Template, error) {
 		return Template{}, fmt.Errorf("id required")
 	}
 	// Custom templates cannot reuse system theme ids unless creating that system row.
-	if !t.IsSystem {
-		switch t.ID {
-		case ThemeBAContent, ThemePanoramaGallery, ThemeTextContent:
-			return Template{}, fmt.Errorf("id %q is reserved for system templates", t.ID)
-		}
+	if !t.IsSystem && IsReservedTemplateID(t.ID) {
+		return Template{}, fmt.Errorf("id %q is reserved for system templates", t.ID)
 	}
 	now := Now()
 	t.CreatedAt = now
@@ -204,9 +201,9 @@ func (s *Store) PutTemplate(id string, t Template) (Template, error) {
 		return Template{}, fmt.Errorf("name required")
 	}
 	patch := map[string]any{
-		"name":        t.Name,
-		"description": t.Description,
-		"sort_order":  float64(t.SortOrder),
+		"name":           t.Name,
+		"description":    t.Description,
+		"sort_order":     float64(t.SortOrder),
 		"allowed_blocks": t.AllowedBlocks,
 	}
 	var raw any
@@ -328,6 +325,21 @@ func builtinSystemTemplates() []Template {
 			}),
 			IsSystem:  true,
 			SortOrder: 2,
+		},
+		{
+			ID:            ThemeLookbookGallery,
+			Theme:         ThemeLookbookGallery,
+			Name:          "Lookbook",
+			Description:   "Masonry photo grid; click opens the panorama overlay.",
+			AllowedBlocks: []string{BlockGalleryImage},
+			DefaultBlocks: MustJSON([]map[string]any{
+				{"type": BlockGalleryImage, "data": galleryData},
+				{"type": BlockGalleryImage, "data": galleryData},
+				{"type": BlockGalleryImage, "data": galleryData},
+				{"type": BlockGalleryImage, "data": galleryData},
+			}),
+			IsSystem:  true,
+			SortOrder: 3,
 		},
 	}
 }

@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { admin, ApiError } from '../api'
-import { BLOCK_PALETTE, TEMPLATES, newBlock } from '../blockTypes'
+import {
+  ALLOWED_BLOCKS_BY_THEME,
+  BLOCK_PALETTE,
+  DEFAULT_BLOCKS_BY_THEME,
+  SYSTEM_THEME_IDS,
+  TEMPLATES,
+  newBlock,
+} from '../blockTypes'
 import { useToast } from '../toast'
 
 const THEME_OPTIONS = TEMPLATES.map((t) => ({
@@ -24,7 +31,7 @@ const FALLBACK_STARTERS = [
     id: 'ba_content',
     theme: 'ba_content',
     name: 'BA page',
-    description: TEMPLATES[0].description,
+    description: TEMPLATES.find((t) => t.id === 'ba_content').description,
     allowed_blocks: ['comparison_slider'],
     default_blocks: [
       { type: 'comparison_slider', data: newBlock('comparison_slider').data },
@@ -36,7 +43,7 @@ const FALLBACK_STARTERS = [
     id: 'panorama_gallery',
     theme: 'panorama_gallery',
     name: 'Gallery',
-    description: TEMPLATES[1].description,
+    description: TEMPLATES.find((t) => t.id === 'panorama_gallery').description,
     allowed_blocks: ['gallery_image'],
     default_blocks: [
       { type: 'gallery_image', data: newBlock('gallery_image').data },
@@ -46,34 +53,26 @@ const FALLBACK_STARTERS = [
     is_system: true,
   },
   {
+    id: 'lookbook_gallery',
+    theme: 'lookbook_gallery',
+    name: 'Lookbook',
+    description: TEMPLATES.find((t) => t.id === 'lookbook_gallery').description,
+    allowed_blocks: ['gallery_image'],
+    default_blocks: DEFAULT_BLOCKS_BY_THEME.lookbook_gallery(),
+    is_system: true,
+  },
+  {
     id: 'text_content',
     theme: 'text_content',
     name: 'Blank / text',
-    description: TEMPLATES[2].description,
+    description: TEMPLATES.find((t) => t.id === 'text_content').description,
     allowed_blocks: ['rich_text', 'contact_form'],
     default_blocks: [{ type: 'rich_text', data: newBlock('rich_text').data }],
     is_system: true,
   },
 ]
 
-const DEFAULT_BLOCKS_BY_THEME = {
-  ba_content: () => [
-    { type: 'comparison_slider', data: newBlock('comparison_slider').data },
-    { type: 'comparison_slider', data: newBlock('comparison_slider').data },
-  ],
-  panorama_gallery: () => [
-    { type: 'gallery_image', data: newBlock('gallery_image').data },
-    { type: 'gallery_image', data: newBlock('gallery_image').data },
-    { type: 'gallery_image', data: newBlock('gallery_image').data },
-  ],
-  text_content: () => [{ type: 'rich_text', data: newBlock('rich_text').data }],
-}
-
-const ALLOWED_BY_THEME = {
-  ba_content: ['comparison_slider'],
-  panorama_gallery: ['gallery_image'],
-  text_content: ['rich_text', 'contact_form'],
-}
+const ALLOWED_BY_THEME = ALLOWED_BLOCKS_BY_THEME
 
 export default function Templates() {
   const toast = useToast()
@@ -204,7 +203,7 @@ export default function Templates() {
         toast.ok('Template saved')
       } else {
         const id = (form.id || '').trim() || slugify(name)
-        if (id && !['ba_content', 'panorama_gallery', 'text_content'].includes(id)) {
+        if (id && !SYSTEM_THEME_IDS.includes(id)) {
           body.id = id
         }
         await admin.templates.create(body)

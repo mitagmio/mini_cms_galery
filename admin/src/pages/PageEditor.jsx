@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { admin, apiUrl } from '../api'
-import { BLOCK_PALETTE, mediaUrl, newBlock, templateLabel, TEMPLATES } from '../blockTypes'
+import { BLOCK_PALETTE, allowedBlocksForTheme, mediaUrl, newBlock, templateLabel, TEMPLATES } from '../blockTypes'
 import MediaPicker from '../components/MediaPicker'
 import { useToast } from '../toast'
 
@@ -26,6 +26,15 @@ export default function PageEditor() {
     () => blocks.find((b) => b.id === selectedId) || null,
     [blocks, selectedId]
   )
+
+  const palette = useMemo(() => {
+    const theme = page?.template || page?.theme
+    const allowed = allowedBlocksForTheme(theme)
+    if (!allowed) return BLOCK_PALETTE
+    return BLOCK_PALETTE.filter((b) => allowed.includes(b.type))
+  }, [page?.template, page?.theme])
+
+  const isLookbook = (page?.template || page?.theme) === 'lookbook_gallery'
 
   const loadMediaIndex = useCallback(async () => {
     try {
@@ -199,7 +208,8 @@ export default function PageEditor() {
             ? {
                 ...prev,
                 ...p,
-                seo: {
+                settings: p.settings || {},
+            seo: {
                   meta_title: p.seo?.meta_title || p.title || prev.seo?.meta_title || '',
                   meta_description:
                     p.seo?.meta_description || p.meta_description || prev.seo?.meta_description || '',
@@ -246,6 +256,34 @@ export default function PageEditor() {
       await save()
       const res = await admin.generate({ page_id: id })
       toast.ok(res.message || 'Draft generated')
+      try {
+        const pRes = await admin.pages.get(id)
+        const p = pRes.page || pRes
+        if (p?.settings) {
+          setPage((prev) => (prev ? { ...prev, settings: p.settings } : prev))
+        }
+      } catch {
+        /* seed refresh is optional */
+      }
+    } catch (e) {
+      toast.error(e.message)
+    }
+  }
+
+  async function reshuffleLookbook() {
+    try {
+      const seed = Date.now()
+      const patched = await admin.pages.patch(id, {
+        settings: { ...(page?.settings || {}), shuffle_seed: seed },
+      })
+      const p = patched.page || patched
+      if (p?.settings) {
+        setPage((prev) => (prev ? { ...prev, settings: p.settings } : prev))
+      } else {
+        setPage((prev) => (prev ? { ...prev, settings: { ...(prev.settings || {}), shuffle_seed: seed } } : prev))
+      }
+      await admin.generate({ page_id: id })
+      toast.ok('Lookbook reshuffled — generate draft applied')
     } catch (e) {
       toast.error(e.message)
     }
@@ -298,6 +336,11 @@ export default function PageEditor() {
           <button type="button" className="secondary" onClick={generateDraft}>
             Generate draft
           </button>
+          {isLookbook ? (
+            <button type="button" className="secondary" onClick={reshuffleLookbook}>
+              Reshuffle
+            </button>
+          ) : null}
           <button type="button" className="secondary" onClick={previewPage}>
             Preview
           </button>
@@ -341,7 +384,7 @@ export default function PageEditor() {
       <div className="editor-panes">
         <aside className="palette">
           <h3>Blocks</h3>
-          {BLOCK_PALETTE.map((b) => (
+          {palette.map((b) => (
             <button key={b.type} type="button" className="palette-item" onClick={() => addBlock(b.type)}>
               <strong>{b.label}</strong>
               <span className="muted">{b.hint}</span>
@@ -352,7 +395,7 @@ export default function PageEditor() {
         <section className="canvas">
           <h3>Canvas</h3>
           {!blocks.length && (
-            <p className="empty-canvas">Add blocks from the palette (BA pair, gallery, text, form).</p>
+            <p className="empty-canvas">Add blocks from the palette.</p>
           )}
           {blocks.map((b, idx) => (
             <div

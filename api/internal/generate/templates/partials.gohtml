@@ -50,6 +50,16 @@
 </ul>
 {{end}}
 
+{{define "gallery_strip"}}
+<div class="assets" id="assets">
+<div id="assets_wrap">
+{{- range .RenderedBlocks }}
+{{.HTML}}
+{{- end }}
+</div>
+</div>
+{{end}}
+
 {{define "blocks"}}
 {{- range .RenderedBlocks }}
 {{.HTML}}
