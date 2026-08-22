@@ -168,6 +168,9 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	if err := s.ensureColumn("templates", "form_key", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return fmt.Errorf("migrate templates.form_key: %w", err)
 	}
+	if err := s.ensureColumn("templates", "source", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate templates.source: %w", err)
+	}
 	return nil
 }
 

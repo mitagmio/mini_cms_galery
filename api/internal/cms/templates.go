@@ -9,7 +9,7 @@ import (
 )
 
 const templateSelectCols = `id, theme, name, description, allowed_blocks_json, default_blocks_json,
-       is_system, sort_order, kind, form_key, created_at, updated_at`
+       is_system, sort_order, kind, form_key, source, created_at, updated_at`
 
 func scanTemplate(scanner interface {
 	Scan(dest ...any) error
@@ -20,7 +20,7 @@ func scanTemplate(scanner interface {
 	if err := scanner.Scan(
 		&t.ID, &t.Theme, &t.Name, &t.Description,
 		&allowedRaw, &defaultRaw, &system, &t.SortOrder,
-		&t.Kind, &t.FormKey, &t.CreatedAt, &t.UpdatedAt,
+		&t.Kind, &t.FormKey, &t.Source, &t.CreatedAt, &t.UpdatedAt,
 	); err != nil {
 		return Template{}, err
 	}
@@ -94,10 +94,15 @@ func (s *Store) CreateTemplate(t Template) (Template, error) {
 	if !ValidTheme(t.Theme) {
 		return Template{}, fmt.Errorf("invalid theme: must be %s", ValidThemeList())
 	}
-	if err := validateAllowedBlocks(t.AllowedBlocks); err != nil {
+	if t.Kind == TemplateKindForm {
+		t.AllowedBlocks = []string{}
+		if IsEmptyJSONArray(t.DefaultBlocks) {
+			t.DefaultBlocks = DefaultFormBlocks(t.FormKey)
+		}
+	} else if err := validateAllowedBlocks(t.AllowedBlocks); err != nil {
 		return Template{}, err
 	}
-	if err := validateDefaultBlocksJSON(t.DefaultBlocks); err != nil {
+	if err := validateDefaultBlocksJSON(t.DefaultBlocks, t.Kind); err != nil {
 		return Template{}, err
 	}
 	if t.Kind != TemplateKindForm && len(t.AllowedBlocks) == 0 {
@@ -128,10 +133,10 @@ func (s *Store) CreateTemplate(t Template) (Template, error) {
 	_, err := s.db.Exec(`
 INSERT INTO templates (
   id, theme, name, description, allowed_blocks_json, default_blocks_json,
-  is_system, sort_order, kind, form_key, created_at, updated_at
-) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+  is_system, sort_order, kind, form_key, source, created_at, updated_at
+) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		t.ID, t.Theme, t.Name, t.Description, string(allowedJSON), string(t.DefaultBlocks),
-		sys, t.SortOrder, t.Kind, t.FormKey, t.CreatedAt, t.UpdatedAt)
+		sys, t.SortOrder, t.Kind, t.FormKey, t.Source, t.CreatedAt, t.UpdatedAt)
 	if err != nil {
 		if strings.Contains(err.Error(), "UNIQUE") || strings.Contains(err.Error(), "constraint") {
 			return Template{}, fmt.Errorf("template id already exists")
@@ -176,7 +181,7 @@ func (s *Store) PatchTemplate(id string, patch map[string]any) (Template, error)
 		}
 	}
 
-	if raw, ok := patch["allowed_blocks"]; ok {
+	if raw, ok := patch["allowed_blocks"]; ok && cur.Kind != TemplateKindForm {
 		blocks, err := coerceStringSlice(raw)
 		if err != nil {
 			return Template{}, fmt.Errorf("allowed_blocks: %w", err)
@@ -191,10 +196,24 @@ func (s *Store) PatchTemplate(id string, patch map[string]any) (Template, error)
 		if err != nil {
 			return Template{}, fmt.Errorf("default_blocks: bad json")
 		}
-		if err := validateDefaultBlocksJSON(b); err != nil {
+		if err := validateDefaultBlocksJSON(b, cur.Kind); err != nil {
 			return Template{}, err
 		}
 		cur.DefaultBlocks = b
+	} else if raw, ok := patch["fields"]; ok && cur.Kind == TemplateKindForm {
+		b, err := json.Marshal(raw)
+		if err != nil {
+			return Template{}, fmt.Errorf("fields: bad json")
+		}
+		if err := validateDefaultBlocksJSON(b, cur.Kind); err != nil {
+			return Template{}, err
+		}
+		cur.DefaultBlocks = b
+	}
+	if v, ok := patch["source"].(string); ok && cur.Kind != TemplateKindForm {
+		cur.Source = v
+	} else if v, ok := patch["body"].(string); ok && cur.Kind != TemplateKindForm {
+		cur.Source = v
 	}
 
 	if strings.TrimSpace(cur.Name) == "" {
@@ -223,13 +242,17 @@ func (s *Store) PatchTemplate(id string, patch map[string]any) (Template, error)
 		cur.FormKey = ""
 	}
 
+	if cur.Kind == TemplateKindForm {
+		cur.Source = ""
+		cur.AllowedBlocks = []string{}
+	}
 	cur.UpdatedAt = Now()
 	allowedJSON, _ := json.Marshal(cur.AllowedBlocks)
 	_, err = s.db.Exec(`
 UPDATE templates SET theme=?, name=?, description=?, allowed_blocks_json=?,
-  default_blocks_json=?, sort_order=?, kind=?, form_key=?, updated_at=? WHERE id=?`,
+  default_blocks_json=?, sort_order=?, kind=?, form_key=?, source=?, updated_at=? WHERE id=?`,
 		cur.Theme, cur.Name, cur.Description, string(allowedJSON),
-		string(cur.DefaultBlocks), cur.SortOrder, cur.Kind, cur.FormKey, cur.UpdatedAt, id)
+		string(cur.DefaultBlocks), cur.SortOrder, cur.Kind, cur.FormKey, cur.Source, cur.UpdatedAt, id)
 	if err != nil {
 		return Template{}, err
 	}
@@ -249,6 +272,7 @@ func (s *Store) PutTemplate(id string, t Template) (Template, error) {
 		"description":    t.Description,
 		"sort_order":     float64(t.SortOrder),
 		"allowed_blocks": t.AllowedBlocks,
+		"source":         t.Source,
 	}
 	var raw any
 	if err := json.Unmarshal(t.DefaultBlocks, &raw); err != nil || raw == nil {
@@ -291,7 +315,7 @@ func validateAllowedBlocks(blocks []string) error {
 	return nil
 }
 
-func validateDefaultBlocksJSON(raw json.RawMessage) error {
+func validateDefaultBlocksJSON(raw json.RawMessage, kind string) error {
 	if len(raw) == 0 {
 		return nil
 	}
@@ -303,7 +327,7 @@ func validateDefaultBlocksJSON(raw json.RawMessage) error {
 		return fmt.Errorf("default_blocks must be an array")
 	}
 	for _, b := range blocks {
-		if !ValidBlockType(b.Type) {
+		if !ValidTemplateBlockType(kind, b.Type) {
 			return fmt.Errorf("invalid default block type %q", b.Type)
 		}
 	}
@@ -311,20 +335,37 @@ func validateDefaultBlocksJSON(raw json.RawMessage) error {
 }
 
 // EnsureSystemTemplates inserts built-in templates when missing (does not overwrite edits).
+// Empty form canvases are seeded once from the current Beauty/Fashion/… field sets.
 func (s *Store) EnsureSystemTemplates() error {
 	for _, t := range builtinSystemTemplates() {
-		_, err := s.GetTemplate(t.ID)
-		if err == nil {
+		cur, err := s.GetTemplate(t.ID)
+		if errors.Is(err, ErrNotFound) {
+			if _, err := s.CreateTemplate(t); err != nil {
+				return err
+			}
 			continue
 		}
-		if !errors.Is(err, ErrNotFound) {
+		if err != nil {
 			return err
 		}
-		if _, err := s.CreateTemplate(t); err != nil {
-			return err
+		if cur.Kind == TemplateKindForm && IsEmptyJSONArray(cur.DefaultBlocks) {
+			seed := DefaultFormBlocks(cur.FormKey)
+			if _, err := s.PatchTemplate(cur.ID, map[string]any{
+				"default_blocks": jsonArrayAny(seed),
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+func jsonArrayAny(raw json.RawMessage) any {
+	var v any
+	if err := json.Unmarshal(raw, &v); err != nil || v == nil {
+		return []any{}
+	}
+	return v
 }
 
 func builtinSystemTemplates() []Template {
@@ -414,7 +455,7 @@ func builtinFormTemplate(id, name, formKey string, sort int) Template {
 		Name:          name,
 		Description:   name + " project request form. Connect this template on a Rate banner.",
 		AllowedBlocks: []string{},
-		DefaultBlocks: MustJSON([]any{}),
+		DefaultBlocks: DefaultFormBlocks(formKey),
 		IsSystem:      true,
 		SortOrder:     sort,
 	}

@@ -107,11 +107,12 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 			body = formatBody(name, emailAddr, message, ip)
 		}
 	case strings.HasPrefix(formKind, "rates_"):
-		name, emailAddr, verr = validateRates(formKind, req)
+		schema := h.formFieldsFor(formKind)
+		name, emailAddr, verr = validateRates(formKind, req, schema)
 		if verr == "" {
 			label := strings.ToUpper(strings.TrimPrefix(formKind, "rates_"))
 			subject = "RATES / " + label + ": " + name
-			body, htmlBody = formatRatesEmail(formKind, req, name, emailAddr, ip)
+			body, htmlBody = formatRatesEmail(formKind, req, name, emailAddr, ip, schema)
 		}
 	default:
 		httpx.WriteError(w, http.StatusBadRequest, "Unknown form.")
@@ -418,6 +419,18 @@ func verifyTurnstile(secret, token, ip string) error {
 		return errors.New("turnstile failed")
 	}
 	return nil
+}
+
+func (h *Handler) formFieldsFor(form string) []cms.FormField {
+	if h == nil || h.Store == nil {
+		return nil
+	}
+	key := strings.TrimPrefix(form, "rates_")
+	t, err := h.Store.GetTemplate(cms.FormTemplateID(key))
+	if err != nil {
+		return nil
+	}
+	return cms.ParseFormFields(t.DefaultBlocks)
 }
 
 func TurnstileSecretFromEnv() string {

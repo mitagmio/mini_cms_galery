@@ -105,6 +105,8 @@ func main() {
 		GeneratePreview: func() error {
 			return genSvc.GeneratePreview()
 		},
+		EngineSource:   generate.EngineSource,
+		ValidateSource: generate.ValidateEngineSource,
 	}
 	guard := auth.New(cfg.AdminToken)
 

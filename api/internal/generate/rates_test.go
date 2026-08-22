@@ -83,7 +83,7 @@ func TestGenerateRatesPreviewIncludesDraftPublishOmits(t *testing.T) {
 		`/assets/theme/rates/retouch-level-4.gif`,
 		`rate-retouch-grid`,
 		`rate-retouch__frame`,
-		`rates.css?v=10`,
+		`rates.css?v=11`,
 		`--rate-banner-aspect: 3 / 4`,
 		`rates-dialog`,
 		`rates-kicker`,

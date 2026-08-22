@@ -19,6 +19,7 @@ type RateModal struct {
 	TurnstileSiteKey string
 	SuccessMessage   string
 	Today            string
+	FormHTML         template.HTML
 }
 
 func mapString(data map[string]any, key string) string {
@@ -116,7 +117,7 @@ func (g *Generator) rateModals(p cms.Page) []RateModal {
 		if cap == "" {
 			cap = cms.RateCaption(key)
 		}
-		out = append(out, RateModal{
+		m := RateModal{
 			Key:              key,
 			Caption:          cap,
 			FormID:           "rates_form_" + key,
@@ -125,7 +126,21 @@ func (g *Generator) rateModals(p cms.Page) []RateModal {
 			TurnstileSiteKey: g.Cfg.TurnstileSiteKey,
 			SuccessMessage:   success,
 			Today:            today,
-		})
+		}
+		m.FormHTML = g.rateFormHTML(key, m)
+		out = append(out, m)
 	}
 	return out
+}
+
+func (g *Generator) rateFormHTML(key string, m RateModal) template.HTML {
+	if g.formsByKey == nil {
+		g.loadTemplateOverrides()
+	}
+	t, ok := g.formsByKey[key]
+	if !ok || !cms.SchemaHasInput(cms.ParseFormFields(t.DefaultBlocks)) {
+		return ""
+	}
+	fields := cms.ParseFormFields(t.DefaultBlocks)
+	return template.HTML(renderRateFormFromSchema(fields, m))
 }

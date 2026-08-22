@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"sheyanova.art/api/internal/cms"
 )
 
 var fashionColorwork = []string{
@@ -152,7 +154,7 @@ var ratesKnown = map[string]bool{
 	"rates_manual":    true,
 }
 
-func validateRates(form string, req submitReq) (name, emailAddr, errMsg string) {
+func validateRates(form string, req submitReq, schema []cms.FormField) (name, emailAddr, errMsg string) {
 	if !ratesKnown[form] {
 		return "", "", "Unknown form."
 	}
@@ -189,14 +191,15 @@ func validateRates(form string, req submitReq) (name, emailAddr, errMsg string) 
 		return "", "", "Please choose a delivery date (YYYY-MM-DD)."
 	}
 	f["Final_delivery"] = iso
-	formatList := formatStd
+	formatList := unionAllow(formatStd, cms.SchemaOptionValues(schema, "Format"))
 	if form == "rates_manual" {
 		task := fieldString(f, "task")
-		if !inList(task, manualTasks) {
+		taskAllow := unionAllow(manualTasks, cms.SchemaOptionValues(schema, "task"))
+		if !inList(task, taskAllow) {
 			return "", "", "Please choose a task."
 		}
 		if task == "cut_model" || task == "cut_object" {
-			formatList = formatCut
+			formatList = unionAllow(formatCut, cms.SchemaOptionValues(schema, "Format"))
 		}
 		colorRef := fieldString(f, "Color_Reference")
 		if (task == "color" || task == "hair") && colorRef == "" {
@@ -209,18 +212,21 @@ func validateRates(form string, req submitReq) (name, emailAddr, errMsg string) 
 			return "", "", "Background reference is too long."
 		}
 	} else if form != "rates_product" {
-		if !inList(fieldString(f, "Retouch_level"), retouchLevels) {
+		retouchAllow := unionAllow(retouchLevels, cms.SchemaOptionValues(schema, "Retouch_level"))
+		if !inList(fieldString(f, "Retouch_level"), retouchAllow) {
 			return "", "", "Please choose a retouch level."
 		}
 	}
 	if !inList(fieldString(f, "Format"), formatList) {
 		return "", "", "Please choose a file format."
 	}
-	if !inList(fieldString(f, "Profile"), profileOpts) {
+	profileAllow := unionAllow(profileOpts, cms.SchemaOptionValues(schema, "Profile"))
+	if !inList(fieldString(f, "Profile"), profileAllow) {
 		return "", "", "Please choose a color profile."
 	}
 	method := fieldString(f, "Contact")
-	if !inList(method, contactMethods) {
+	contactAllow := unionAllow(contactMethods, cms.SchemaOptionValues(schema, "Contact"))
+	if !inList(method, contactAllow) {
 		return "", "", "Please choose a contact method."
 	}
 	phone := fieldString(f, "Phone")
@@ -242,12 +248,15 @@ func validateRates(form string, req submitReq) (name, emailAddr, errMsg string) 
 	if utf8.RuneCountInString(fieldString(f, "Final_delivery")) > 32 {
 		return "", "", "Delivery date is invalid."
 	}
-	for _, key := range []string{"colorwork", "background", "model", "clothing", "footwear", "objectwork", "hairretouch", "clipping"} {
+	listKeys := []string{"colorwork", "background", "model", "clothing", "footwear", "objectwork", "hairretouch", "clipping"}
+	seenList := map[string]bool{}
+	for _, key := range listKeys {
+		seenList[key] = true
 		vals := asStringSlice(fieldAny(f, key))
 		if len(vals) > maxArray {
 			return "", "", "Too many options selected."
 		}
-		allow := allowlistFor(form, key)
+		allow := unionAllow(allowlistFor(form, key), cms.SchemaOptionValues(schema, key))
 		for _, v := range vals {
 			if utf8.RuneCountInString(v) > maxField {
 				return "", "", "An option is too long."
@@ -257,7 +266,67 @@ func validateRates(form string, req submitReq) (name, emailAddr, errMsg string) 
 			}
 		}
 	}
+	for _, fld := range schema {
+		if !fld.IsInput() || fld.Type == cms.BlockFormFooter {
+			continue
+		}
+		key := fld.Name()
+		if key == "" || seenList[key] || knownRatesKey[key] {
+			continue
+		}
+		if fld.Type == cms.BlockFormCheckbox || fld.Type == cms.BlockFormRadio {
+			vals := asStringSlice(fieldAny(f, key))
+			if len(vals) > maxArray {
+				return "", "", "Too many options selected."
+			}
+			allow := fld.OptionValues()
+			for _, v := range vals {
+				if utf8.RuneCountInString(v) > maxField {
+					return "", "", "An option is too long."
+				}
+				if len(allow) > 0 && !inList(v, allow) {
+					return "", "", "Invalid option selected."
+				}
+			}
+			continue
+		}
+		if utf8.RuneCountInString(fieldString(f, key)) > maxField {
+			return "", "", key + " is too long."
+		}
+	}
 	return name, emailAddr, ""
+}
+
+var knownRatesKey = map[string]bool{
+	"form": true, "name": true, "Name": true, "email": true, "Email": true,
+	"message": true, "company": true, "website": true, "subject": true,
+	"_t": true, "cf-turnstile-response": true,
+	"Imagelink": true, "Total": true, "Final_delivery": true, "Retouch_level": true,
+	"Color_Reference": true, "backclipping": true, "Format": true, "Profile": true,
+	"Contact": true, "Phone": true, "Brief": true, "task": true,
+	"colorwork": true, "background": true, "model": true, "clothing": true,
+	"footwear": true, "objectwork": true, "hairretouch": true, "clipping": true,
+}
+
+func unionAllow(base, extra []string) []string {
+	if len(extra) == 0 {
+		return base
+	}
+	seen := map[string]bool{}
+	out := make([]string, 0, len(base)+len(extra))
+	for _, s := range base {
+		if s != "" && !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	for _, s := range extra {
+		if s != "" && !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func allowlistFor(form, key string) []string {
@@ -307,11 +376,11 @@ func allowlistFor(form, key string) []string {
 }
 
 func formatRatesBody(form string, req submitReq, name, email, ip string) string {
-	plain, _ := formatRatesEmail(form, req, name, email, ip)
+	plain, _ := formatRatesEmail(form, req, name, email, ip, nil)
 	return plain
 }
 
-func formatRatesEmail(form string, req submitReq, name, email, ip string) (plain, htmlBody string) {
+func formatRatesEmail(form string, req submitReq, name, email, ip string, schema []cms.FormField) (plain, htmlBody string) {
 	label := strings.ToUpper(strings.TrimPrefix(form, "rates_"))
 	intro := fmt.Sprintf("New request from sheyanova.art RATES (%s)", label)
 
@@ -387,7 +456,7 @@ func formatRatesEmail(form string, req submitReq, name, email, ip string) (plain
 		{"clipping", "Clipping"},
 	}
 	for _, lk := range listKeys {
-		kept := keptOptions(form, req.Fields, lk.key)
+		kept := keptOptions(form, req.Fields, lk.key, cms.SchemaOptionValues(schema, lk.key))
 		if len(kept) == 0 {
 			continue
 		}
@@ -395,6 +464,55 @@ func formatRatesEmail(form string, req submitReq, name, email, ip string) (plain
 	}
 	if v := fieldString(req.Fields, "Brief"); v != "" {
 		add(item{label: "Brief", value: v})
+	}
+	used := map[string]bool{}
+	for k := range knownRatesKey {
+		used[k] = true
+	}
+	for _, fld := range schema {
+		key := fld.Name()
+		if key == "" || used[key] || !fld.IsInput() || fld.Type == cms.BlockFormFooter {
+			continue
+		}
+		used[key] = true
+		label := fld.Label()
+		if label == "" {
+			label = key
+		}
+		if fld.Type == cms.BlockFormCheckbox || fld.Type == cms.BlockFormRadio {
+			list := asStringSlice(fieldAny(req.Fields, key))
+			if len(list) == 0 {
+				continue
+			}
+			add(item{label: label, list: list})
+			continue
+		}
+		v := fieldString(req.Fields, key)
+		if v == "" {
+			continue
+		}
+		if utf8.RuneCountInString(v) > maxField {
+			v = string([]rune(v)[:maxField])
+		}
+		add(item{label: label, value: v})
+	}
+	for key, raw := range req.Fields {
+		if used[key] {
+			continue
+		}
+		used[key] = true
+		if list := asStringSlice(raw); len(list) > 1 || (len(list) == 1 && (isSlice(raw))) {
+			add(item{label: key, list: list})
+			continue
+		}
+		v := asString(raw)
+		if v == "" {
+			continue
+		}
+		if utf8.RuneCountInString(v) > maxField {
+			v = string([]rune(v)[:maxField])
+		}
+		add(item{label: key, value: v})
 	}
 
 	var b strings.Builder
@@ -446,13 +564,13 @@ func formatRatesEmail(form string, req submitReq, name, email, ip string) (plain
 	return b.String(), h.String()
 }
 
-func keptOptions(form string, fields map[string]any, key string) []string {
+func keptOptions(form string, fields map[string]any, key string, extra []string) []string {
 	v := fieldAny(fields, key)
 	arr := asStringSlice(v)
 	if len(arr) == 0 {
 		return nil
 	}
-	allow := allowlistFor(form, key)
+	allow := unionAllow(allowlistFor(form, key), extra)
 	var kept []string
 	for _, item := range arr {
 		item = strings.TrimSpace(item)
@@ -465,6 +583,15 @@ func keptOptions(form string, fields map[string]any, key string) []string {
 		kept = append(kept, item)
 	}
 	return kept
+}
+
+func isSlice(v any) bool {
+	switch v.(type) {
+	case []any, []string:
+		return true
+	default:
+		return false
+	}
 }
 
 func absoluteURL(s string) string {

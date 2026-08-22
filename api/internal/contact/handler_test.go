@@ -484,6 +484,52 @@ func TestSubmitRatesEmailAlias(t *testing.T) {
 	}
 }
 
+func TestSubmitRatesCustomSchemaOption(t *testing.T) {
+	fs := &fakeSender{}
+	h, s := testHandler(t, fs)
+	if err := s.EnsureSystemTemplates(); err != nil {
+		t.Fatal(err)
+	}
+	cur, err := s.GetTemplate(cms.FormTemplateFashion)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := cms.ParseFormFields(cur.DefaultBlocks)
+	blocks := make([]map[string]any, 0, len(fields)+1)
+	for _, f := range fields {
+		if f.Name() == "colorwork" {
+			opts := f.Options()
+			raw := make([]any, 0, len(opts)+1)
+			for _, o := range opts {
+				raw = append(raw, map[string]any{"value": o.Value, "label": o.Label})
+			}
+			raw = append(raw, map[string]any{"value": "Studio LUT pass", "label": "Studio LUT pass"})
+			f.Data["options"] = raw
+		}
+		blocks = append(blocks, map[string]any{"type": f.Type, "data": f.Data})
+	}
+	blocks = append(blocks, map[string]any{
+		"type": cms.BlockFormText,
+		"data": map[string]any{"name": "Studio_name", "label": "Studio", "required": false},
+	})
+	if _, err := s.PatchTemplate(cms.FormTemplateFashion, map[string]any{"default_blocks": blocks}); err != nil {
+		t.Fatal(err)
+	}
+	p := ratesFashionPayload()
+	p["colorwork"] = []string{"Studio LUT pass"}
+	p["Studio_name"] = "Atelier North"
+	rec := postJSON(h.Submit, "https://sheyanova.art", p, nil)
+	if rec.Code != 200 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(fs.last.Body, "Studio LUT pass") {
+		t.Fatalf("custom option missing: %s", fs.last.Body)
+	}
+	if !strings.Contains(fs.last.Body, "Studio") || !strings.Contains(fs.last.Body, "Atelier North") {
+		t.Fatalf("custom field missing: %s", fs.last.Body)
+	}
+}
+
 func TestSubmitRatesPhoneRequiredForWhatsApp(t *testing.T) {
 	fs := &fakeSender{}
 	h, _ := testHandler(t, fs)

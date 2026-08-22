@@ -10,6 +10,7 @@ import (
 	_ "image/png"
 	"io"
 	"io/fs"
+	"log"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -36,6 +37,8 @@ type Generator struct {
 	tmpl        *template.Template
 	pagesByID   map[string]cms.Page
 	pagesBySlug map[string]cms.Page
+	srcByTheme  map[string]string
+	formsByKey  map[string]cms.Template
 }
 
 type renderedBlock struct {
@@ -43,7 +46,11 @@ type renderedBlock struct {
 	ImageSrc string
 	Alt      string
 	Type     string
+	Width    int
+	Height   int
 }
+
+const galleryLoadMarkHTML = `<span class="gallery-load-mark" aria-hidden="true"><span class="gallery-load-line"></span></span>`
 
 func New(store *cms.Store, cfg Config) (*Generator, error) {
 	if cfg.OutDir == "" {
@@ -52,12 +59,7 @@ func New(store *cms.Store, cfg Config) (*Generator, error) {
 	if cfg.PreviewBase == "" {
 		cfg.PreviewBase = "/preview"
 	}
-	funcs := template.FuncMap{
-		"trimSlash": func(s string) string {
-			return strings.Trim(strings.TrimPrefix(s, "/"), "/")
-		},
-	}
-	tmpl, err := template.New("root").Funcs(funcs).ParseFS(templateFS, "templates/*.gohtml")
+	tmpl, err := template.New("root").Funcs(templateFuncMap()).ParseFS(templateFS, "templates/*.gohtml")
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
 	}
@@ -80,6 +82,7 @@ func (g *Generator) GenerateSite() error {
 		return err
 	}
 	g.setPageIndex(pages)
+	g.loadTemplateOverrides()
 	emitted := make([]cms.Page, 0, len(pages))
 	for _, p := range pages {
 		if g.Cfg.PublishedOnly && !p.IsPublished() {
@@ -143,6 +146,7 @@ func (g *Generator) GeneratePage(pageID string) (string, error) {
 	if pages, err := g.Store.ListPages(); err == nil {
 		g.setPageIndex(pages)
 	}
+	g.loadTemplateOverrides()
 	if err := g.writePage(p); err != nil {
 		return "", err
 	}
@@ -161,6 +165,54 @@ func (g *Generator) setPageIndex(pages []cms.Page) {
 			g.pagesBySlug[""] = p
 		}
 	}
+}
+
+func (g *Generator) loadTemplateOverrides() {
+	g.srcByTheme = map[string]string{}
+	g.formsByKey = map[string]cms.Template{}
+	if g.Store == nil {
+		return
+	}
+	list, err := g.Store.ListTemplates()
+	if err != nil {
+		log.Printf("generate: list templates: %v", err)
+		return
+	}
+	for _, t := range list {
+		if t.Kind == cms.TemplateKindForm && t.FormKey != "" {
+			g.formsByKey[t.FormKey] = t
+			continue
+		}
+		src := strings.TrimSpace(t.Source)
+		if src == "" || t.Theme == "" {
+			continue
+		}
+		if t.ID == t.Theme || t.IsSystem {
+			g.srcByTheme[t.Theme] = src
+		}
+	}
+}
+
+func (g *Generator) executePageTemplate(name string, view any, buf *strings.Builder) error {
+	src := ""
+	if g.srcByTheme != nil {
+		src = strings.TrimSpace(g.srcByTheme[name])
+	}
+	if src != "" {
+		clone, err := g.tmpl.Clone()
+		if err != nil {
+			log.Printf("generate: clone templates for %s: %v", name, err)
+		} else if _, err := clone.Parse(src); err != nil {
+			log.Printf("generate: db source %s parse failed, falling back to file: %v", name, err)
+		} else if err := clone.ExecuteTemplate(buf, name, view); err != nil {
+			log.Printf("generate: db source %s execute failed, falling back to file: %v", name, err)
+			buf.Reset()
+		} else {
+			return nil
+		}
+		buf.Reset()
+	}
+	return g.tmpl.ExecuteTemplate(buf, name, view)
 }
 
 func (g *Generator) contactAction() string {
@@ -275,6 +327,25 @@ func probeImageSize(path string) (int, int, bool) {
 	return cfg.Width, cfg.Height, true
 }
 
+func (g *Generator) probeMediaSize(id, url string) (int, int) {
+	path := g.mediaFilePath(id, url)
+	if path == "" {
+		return 0, 0
+	}
+	w, h, ok := probeImageSize(path)
+	if !ok {
+		return 0, 0
+	}
+	return w, h
+}
+
+func imgDimensionAttrs(w, h int) string {
+	if w < 1 || h < 1 {
+		return ""
+	}
+	return fmt.Sprintf(` width="%d" height="%d"`, w, h)
+}
+
 // sitePath rewrites internal site links for draft preview (/preview/...) vs publish (/...).
 func (g *Generator) sitePath(href string) string {
 	prefix := strings.TrimRight(g.Cfg.PathPrefix, "/")
@@ -385,6 +456,9 @@ func pageCanonicalURL(p cms.Page, canonBase string) string {
 }
 
 func (g *Generator) writePage(p cms.Page) error {
+	if g.formsByKey == nil && g.srcByTheme == nil {
+		g.loadTemplateOverrides()
+	}
 	settings, err := g.Store.GetSettings()
 	if err != nil {
 		return err
@@ -475,7 +549,7 @@ func (g *Generator) writePage(p cms.Page) error {
 	}
 
 	var buf strings.Builder
-	if err := g.tmpl.ExecuteTemplate(&buf, name, view); err != nil {
+	if err := g.executePageTemplate(name, view, &buf); err != nil {
 		return err
 	}
 
@@ -537,6 +611,7 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 		return url, nil
 	}
 
+	firstComparison := true
 	for i, b := range p.Blocks {
 		var data map[string]any
 		_ = json.Unmarshal(b.Data, &data)
@@ -558,9 +633,25 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 				continue
 			}
 			overlay, _ := data["overlay"].(bool)
-			cls := "comparison_slider"
+			cls := "comparison_slider ba-pair ba-await"
 			if overlay {
 				cls += " comparison_slider--overlay"
+			}
+			afterSrc := pathURL(after)
+			beforeSrc := pathURL(before)
+			dim := imgDimensionAttrs(g.probeMediaSize(beforeID, beforeURL))
+			if dim == "" {
+				dim = imgDimensionAttrs(g.probeMediaSize(afterID, afterURL))
+			}
+			var afterTag, beforeTag string
+			if firstComparison {
+				cls += " ba-first"
+				afterTag = fmt.Sprintf(`<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--2" decoding="async" loading="eager" fetchpriority="high" src="%s" data-src="%s"%s/>`, afterSrc, afterSrc, dim)
+				beforeTag = fmt.Sprintf(`<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--1" decoding="async" loading="eager" fetchpriority="high" src="%s" data-src="%s"%s/>`, beforeSrc, beforeSrc, dim)
+				firstComparison = false
+			} else {
+				afterTag = fmt.Sprintf(`<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--2" decoding="async" loading="lazy" fetchpriority="low" src="%s" data-src="%s"%s/>`, afterSrc, afterSrc, dim)
+				beforeTag = fmt.Sprintf(`<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--1" decoding="async" loading="lazy" fetchpriority="low" src="%s" data-src="%s"%s/>`, beforeSrc, beforeSrc, dim)
 			}
 			uid := fmt.Sprintf("%s-%d", b.ID, i)
 			html = fmt.Sprintf(`
@@ -569,8 +660,9 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 <div class="%s">
 <div class="comparison_slider__slider_wrap">
 <div class="comparison_slider__image_wrap">
-<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--2" src="%s"/>
-<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--1" src="%s"/>
+%s
+%s
+%s
 </div>
 <input class="comparison_slider__slider_range" max="1" min="0" name="slider" step="any" type="range" value="0.5" style="--slider-default-position:50"/>
 <div class="comparison_slider__slider_button_container">
@@ -583,7 +675,7 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 <div class="comparison_slider__copy_wrap"></div>
 </div>
 </div>
-</div>`, uid, cls, pathURL(after), pathURL(before))
+</div>`, uid, cls, galleryLoadMarkHTML, afterTag, beforeTag)
 
 		case cms.BlockGalleryImage:
 			mid, _ := data["media_id"].(string)
@@ -594,16 +686,19 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 				continue
 			}
 			imgSrc := pathURL(src)
+			w, h := g.probeMediaSize(mid, url)
+			dim := imgDimensionAttrs(w, h)
 			html = fmt.Sprintf(`
-<div class="asset image">
+<div class="asset image asset-await">
 <div class="wrap">
 <div class="img">
+%s
 <span class="midd hide-for-large"></span>
-<img alt="%s" class="lazyload" data-pin-nopin="true" loading="eager" src="%s" data-src="%s"/>
+<img alt="%s" class="gallery-photo" data-pin-nopin="true" decoding="async"%s data-src="%s"/>
 </div>
 </div>
-</div>`, template.HTMLEscapeString(alt), imgSrc, imgSrc)
-			out = append(out, renderedBlock{HTML: template.HTML(html), ImageSrc: imgSrc, Alt: alt, Type: cms.BlockGalleryImage})
+</div>`, galleryLoadMarkHTML, template.HTMLEscapeString(alt), dim, imgSrc)
+			out = append(out, renderedBlock{HTML: template.HTML(html), ImageSrc: imgSrc, Alt: alt, Type: cms.BlockGalleryImage, Width: w, Height: h})
 			continue
 
 		case cms.BlockRichText:

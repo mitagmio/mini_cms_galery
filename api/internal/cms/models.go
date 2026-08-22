@@ -17,6 +17,20 @@ const (
 	BlockRichText         = "rich_text"
 	BlockContactForm      = "contact_form"
 	BlockRateBanner       = "rate_banner"
+
+	// Form-template canvas blocks (kind=form only; not page engines).
+	BlockFormStep     = "form_step"
+	BlockFormText     = "form_text"
+	BlockFormNumber   = "form_number"
+	BlockFormDate     = "form_date"
+	BlockFormTextarea = "form_textarea"
+	BlockFormSelect   = "form_select"
+	BlockFormRadio    = "form_radio"
+	BlockFormCheckbox = "form_checkbox"
+	BlockFormRetouch  = "form_retouch_level"
+	BlockFormHelp     = "form_help"
+	BlockFormFooter   = "form_contact_footer"
+	BlockFormHoneypot = "form_honeypot"
 )
 
 const (
@@ -264,6 +278,8 @@ type Template struct {
 	Description   string          `json:"description"`
 	AllowedBlocks []string        `json:"allowed_blocks"`
 	DefaultBlocks json.RawMessage `json:"default_blocks"`
+	Source        string          `json:"source"`
+	FileSource    string          `json:"file_source,omitempty"`
 	IsSystem      bool            `json:"is_system"`
 	SortOrder     int             `json:"sort_order"`
 	CreatedAt     string          `json:"created_at"`

@@ -13,8 +13,10 @@
 <link href="/static/theme_api/vendor/webtype_fonts.min-a27384810945198dd373502796bfbada62cc8409c49831a8778ac894e78f7749.css" media="screen" rel="stylesheet"/>
 <link href="/static/theme_api/v1/protected_images-6cc002aad772e14af53bbbb966d0611491b39e25fc8fba42e94598f98d535828.css" media="screen" rel="stylesheet"/>
 <link href="/assets/theme/stylesheet.css?v=7" media="screen" rel="stylesheet"/>
-<link href="/assets/theme/lookbook-harden.css?v=6" media="screen" rel="stylesheet"/>
-<link href="/assets/theme/lookbook.css?v=3" media="screen" rel="stylesheet"/>
+<link href="/assets/theme/lookbook-harden.css?v=7" media="screen" rel="stylesheet"/>
+<link href="/assets/theme/lookbook.css?v=4" media="screen" rel="stylesheet"/>
+<link href="/assets/theme/gallery-load.css?v=2" media="screen" rel="stylesheet"/>
+<noscript><style>.lookbook-tile img,.gallery_content .asset img{opacity:1!important}.gallery-load-mark{display:none!important}</style></noscript>
 </head>
 <body class="lookbook simple simple_page" data-shuffle-seed="{{.ShuffleSeed}}">
 <div class="page clearfix">
@@ -30,7 +32,8 @@
 <div class="lookbook-grid" id="lookbook-grid">
 {{- range $i, $b := .RenderedBlocks }}
 <button type="button" class="lookbook-tile" data-index="{{$i}}" aria-label="Open photo {{$i}}">
-<img src="{{$b.ImageSrc}}" alt="{{$b.Alt}}" loading="lazy"/>
+<span class="gallery-load-mark" aria-hidden="true"><span class="gallery-load-line"></span></span>
+<img src="{{$b.ImageSrc}}" alt="{{$b.Alt}}" loading="lazy" decoding="async"{{if and $b.Width $b.Height}} width="{{$b.Width}}" height="{{$b.Height}}"{{end}}/>
 </button>
 {{- end }}
 </div>
@@ -55,12 +58,13 @@
 <script>
 window._4ORMAT_DATA = {{.FormatData}};
 </script>
+<script src="/assets/theme/gallery-load.js?v=2"></script>
 <script src="/assets/theme/panorama/javascripts/jquery.js"></script>
 <script src="/assets/theme/panorama/javascripts/jquery.mousewheel.js?v=passive1"></script>
 <script src="/assets/theme/panorama/javascripts/jquery.jscrollpane.js"></script>
 <script src="/assets/theme/panorama/javascripts/theme.js"></script>
 <script src="/assets/theme/panorama/javascripts/gallery-wheel.js?v=5"></script>
-<script src="/assets/theme/lookbook.js?v=5"></script>
+<script src="/assets/theme/lookbook.js?v=6"></script>
 </body>
 </html>
 {{end}}

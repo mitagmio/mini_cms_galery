@@ -114,12 +114,16 @@ func TestGenerateLookbookHTML(t *testing.T) {
 		`lookbook.css`,
 		`lookbook-harden.css`,
 		`lookbook.js`,
+		`gallery-load.js`,
+		`gallery-load.css`,
+		`gallery-load-mark`,
 		`gallery-wheel.js`,
 		`data-shuffle-seed=`,
 		`class="lookbook-tile"`,
 		`lookbook-nav-prev`,
 		`lookbook-nav-next`,
-		`class="asset image"`,
+		`class="asset image`,
+		`asset-await`,
 		`alt="one"`,
 		`alt="two"`,
 		`alt="three"`,
@@ -149,8 +153,20 @@ func TestGenerateLookbookHTML(t *testing.T) {
 	if strings.Count(html, `class="lookbook-tile"`) != 3 {
 		t.Fatalf("tiles=%d", strings.Count(html, `class="lookbook-tile"`))
 	}
-	if strings.Count(html, `class="asset image"`) != 3 {
-		t.Fatalf("assets=%d", strings.Count(html, `class="asset image"`))
+	if strings.Count(html, `class="asset image`) != 3 {
+		t.Fatalf("assets=%d", strings.Count(html, `class="asset image`))
+	}
+	if strings.Count(html, `class="gallery-load-mark"`) != 6 {
+		t.Fatalf("want 3 tile + 3 overlay frame loaders, got %d", strings.Count(html, `class="gallery-load-mark"`))
+	}
+	if strings.Count(html, `data-src="/assets/cdn/one.jpg"`) != 1 {
+		t.Fatal("overlay photo should use data-src (no eager original)")
+	}
+	if strings.Count(html, ` src="/assets/cdn/one.jpg"`) != 1 {
+		t.Fatal("masonry tile keeps src; overlay must not duplicate it")
+	}
+	if !strings.Contains(html, `decoding="async"`) {
+		t.Fatal("expected decoding=async")
 	}
 
 	got, err := s.GetPage(p.ID)

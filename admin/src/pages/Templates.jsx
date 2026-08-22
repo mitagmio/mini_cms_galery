@@ -10,6 +10,7 @@ import {
   newBlock,
 } from '../blockTypes'
 import { useToast } from '../toast'
+import TemplateEditor from './TemplateEditor'
 
 const THEME_OPTIONS = TEMPLATES.map((t) => ({
   id: t.id,
@@ -356,6 +357,19 @@ export default function Templates() {
   const pageTemplates = templates.filter((t) => t.kind !== 'form')
   const formTemplates = templates.filter((t) => t.kind === 'form')
 
+  if (formOpen && editingId && editing) {
+    return (
+      <TemplateEditor
+        tmpl={editing}
+        apiReady={apiReady}
+        onCancel={closeForm}
+        onSaved={async () => {
+          await load()
+        }}
+      />
+    )
+  }
+
   return (
     <div className="page">
       <header className="page-head">
@@ -412,21 +426,9 @@ export default function Templates() {
               <>
                 <p>
                   <span className="badge">Form</span>
-                  {form.form_key ? (
-                    <span className="badge">{form.form_key}</span>
-                  ) : null}
+                  {form.form_key ? <span className="badge">{form.form_key}</span> : null}
                 </p>
-                <p className="muted">
-                  Drives the {form.name || 'this'} Rate banner
-                  {form.form_key ? (
-                    <>
-                      {' '}
-                      (<code>form_key={form.form_key}</code>, POST{' '}
-                      <code>form=rates_{form.form_key}</code>)
-                    </>
-                  ) : null}
-                  . Fields are defined by the {form.name || 'form'} form layout.
-                </p>
+                <p className="muted">Form templates are edited on the canvas after create.</p>
               </>
             ) : (
               <label>
@@ -609,6 +611,8 @@ function normalizeTemplate(raw) {
     description: raw.description || '',
     allowed_blocks: Array.isArray(raw.allowed_blocks) ? raw.allowed_blocks : [],
     default_blocks,
+    source: raw.source || '',
+    file_source: raw.file_source || '',
     is_system: Boolean(raw.is_system),
     sort_order: raw.sort_order ?? 0,
   }

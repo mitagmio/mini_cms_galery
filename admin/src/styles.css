@@ -553,6 +553,28 @@ a.button.secondary, .button.secondary {
 .status-success, .status-ok { border-color: #1a7a3c; color: #1a7a3c; }
 .status-failed { border-color: var(--accent); color: var(--accent); }
 
+.template-tabs { padding: 0.5rem 1rem 0; max-width: 420px; }
+.template-editor-lead { padding: 0.5rem 1rem 0; }
+.template-code-wrap { padding: 1rem; display: flex; flex-direction: column; gap: 0.5rem; flex: 1; min-height: 0; }
+.template-code {
+  width: 100%;
+  min-height: calc(100vh - 240px);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  tab-size: 2;
+  resize: vertical;
+}
+.template-settings { max-width: 720px; padding: 1rem; }
+.option-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.35rem;
+  align-items: center;
+}
+.option-row input { flex: 1; min-width: 7rem; }
+
 @media (max-width: 960px) {
   .editor-panes { grid-template-columns: 1fr; }
   .palette, .inspector { border: 0; border-bottom: 1px solid var(--line); max-height: 280px; }

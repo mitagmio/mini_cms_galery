@@ -67,6 +67,24 @@ func ValidBlockType(t string) bool {
 	}
 }
 
+func ValidFormBlockType(t string) bool {
+	switch t {
+	case BlockFormStep, BlockFormText, BlockFormNumber, BlockFormDate, BlockFormTextarea,
+		BlockFormSelect, BlockFormRadio, BlockFormCheckbox, BlockFormRetouch,
+		BlockFormHelp, BlockFormFooter, BlockFormHoneypot:
+		return true
+	default:
+		return false
+	}
+}
+
+func ValidTemplateBlockType(kind, t string) bool {
+	if kind == TemplateKindForm {
+		return ValidFormBlockType(t)
+	}
+	return ValidBlockType(t)
+}
+
 // DefaultAllowedBlocks returns the block types that fit a theme engine.
 func DefaultAllowedBlocks(theme string) []string {
 	switch theme {

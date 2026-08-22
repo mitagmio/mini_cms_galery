@@ -20,6 +20,8 @@ type Handler struct {
 	MaxUpload       int64
 	ImportFn        func(force bool) (any, error)
 	GeneratePreview func() error
+	EngineSource    func(theme string) (string, error)
+	ValidateSource  func(theme, src string) error
 }
 
 func (h *Handler) Settings(w http.ResponseWriter, r *http.Request) {
@@ -564,12 +566,16 @@ func (h *Handler) Templates(w http.ResponseWriter, r *http.Request) {
 		}
 		body.NormalizeAliases()
 		body.IsSystem = false // clients cannot mint system templates
+		if err := h.validateTemplateSource(body.Theme, body.Source, body.Kind); err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		out, err := h.Store.CreateTemplate(body)
 		if err != nil {
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		httpx.WriteJSON(w, http.StatusCreated, map[string]any{"ok": true, "template": out})
+		h.writeTemplateSaved(w, http.StatusCreated, out)
 	default:
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
@@ -593,12 +599,32 @@ func (h *Handler) TemplateByID(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
+		h.attachEngineSource(&t)
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t})
 	case http.MethodPatch:
 		var patch map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&patch); err != nil {
 			httpx.WriteError(w, http.StatusBadRequest, "bad json")
 			return
+		}
+		cur, err := h.Store.GetTemplate(id)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				httpx.WriteError(w, http.StatusNotFound, "not found")
+				return
+			}
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		src, hasSrc := patchString(patch, "source")
+		if !hasSrc {
+			src, hasSrc = patchString(patch, "body")
+		}
+		if hasSrc {
+			if err := h.validateTemplateSource(cur.Theme, src, cur.Kind); err != nil {
+				httpx.WriteError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 		}
 		t, err := h.Store.PatchTemplate(id, patch)
 		if err != nil {
@@ -609,11 +635,32 @@ func (h *Handler) TemplateByID(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t})
+		h.writeTemplateSaved(w, http.StatusOK, t)
 	case http.MethodPut:
 		var body Template
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			httpx.WriteError(w, http.StatusBadRequest, "bad json")
+			return
+		}
+		cur, err := h.Store.GetTemplate(id)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				httpx.WriteError(w, http.StatusNotFound, "not found")
+				return
+			}
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		kind := body.Kind
+		if kind == "" {
+			kind = cur.Kind
+		}
+		theme := body.Theme
+		if theme == "" {
+			theme = cur.Theme
+		}
+		if err := h.validateTemplateSource(theme, body.Source, kind); err != nil {
+			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
 		t, err := h.Store.PutTemplate(id, body)
@@ -625,8 +672,67 @@ func (h *Handler) TemplateByID(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "template": t})
+		h.writeTemplateSaved(w, http.StatusOK, t)
 	default:
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (h *Handler) attachEngineSource(t *Template) {
+	if t == nil || t.Kind == TemplateKindForm || h.EngineSource == nil {
+		return
+	}
+	src, err := h.EngineSource(t.Theme)
+	if err != nil {
+		return
+	}
+	t.FileSource = src
+}
+
+func (h *Handler) validateTemplateSource(theme, src, kind string) error {
+	if kind == TemplateKindForm || strings.TrimSpace(src) == "" {
+		return nil
+	}
+	if h.ValidateSource == nil {
+		return nil
+	}
+	return h.ValidateSource(theme, src)
+}
+
+func (h *Handler) writeTemplateSaved(w http.ResponseWriter, status int, t Template) {
+	h.attachEngineSource(&t)
+	generated := false
+	var generateErr string
+	if h.GeneratePreview != nil {
+		if err := h.GeneratePreview(); err != nil {
+			generateErr = err.Error()
+			log.Printf("cms: preview generate after template save failed: %v", err)
+		} else {
+			generated = true
+		}
+	}
+	resp := map[string]any{
+		"ok":        true,
+		"template":  t,
+		"generated": generated,
+	}
+	if generateErr != "" {
+		resp["generate_error"] = generateErr
+	}
+	httpx.WriteJSON(w, status, resp)
+}
+
+func patchString(patch map[string]any, key string) (string, bool) {
+	if patch == nil {
+		return "", false
+	}
+	v, ok := patch[key]
+	if !ok {
+		return "", false
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", false
+	}
+	return s, true
 }

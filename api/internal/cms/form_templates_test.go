@@ -60,9 +60,69 @@ func TestEnsureSystemFormTemplates(t *testing.T) {
 		if ValidTheme(tmpl.ID) {
 			t.Fatalf("%s id must not be a page engine", id)
 		}
+		fields := ParseFormFields(tmpl.DefaultBlocks)
+		if !SchemaHasInput(fields) {
+			t.Fatalf("%s: expected seeded form fields", id)
+		}
+		if _, ok := SchemaField(fields, "Imagelink"); !ok {
+			t.Fatalf("%s: missing Imagelink", id)
+		}
 	}
 	if err := s.EnsureSystemTemplates(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPatchSystemFormFields(t *testing.T) {
+	s := testStore(t)
+	if err := s.EnsureSystemTemplates(); err != nil {
+		t.Fatal(err)
+	}
+	cur, err := s.GetTemplate(FormTemplateBeauty)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields := ParseFormFields(cur.DefaultBlocks)
+	var color *FormField
+	for i := range fields {
+		if fields[i].Name() == "colorwork" {
+			color = &fields[i]
+			break
+		}
+	}
+	if color == nil {
+		t.Fatal("beauty colorwork missing")
+	}
+	opts := color.Options()
+	opts = append(opts, FormOption{Value: "Extra Beauty Option", Label: "Extra Beauty Option"})
+	rawOpts := make([]any, 0, len(opts))
+	for _, o := range opts {
+		rawOpts = append(rawOpts, map[string]any{"value": o.Value, "label": o.Label})
+	}
+	color.Data["options"] = rawOpts
+	blocks := make([]map[string]any, 0, len(fields))
+	for _, f := range fields {
+		blocks = append(blocks, map[string]any{"type": f.Type, "data": f.Data})
+	}
+	out, err := s.PatchTemplate(FormTemplateBeauty, map[string]any{
+		"name":           "Beauty retouch",
+		"default_blocks": blocks,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Name != "Beauty retouch" {
+		t.Fatalf("name=%s", out.Name)
+	}
+	got := SchemaOptionValues(ParseFormFields(out.DefaultBlocks), "colorwork")
+	found := false
+	for _, v := range got {
+		if v == "Extra Beauty Option" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("custom option missing: %v", got)
 	}
 }
 
