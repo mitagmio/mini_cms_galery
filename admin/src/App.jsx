@@ -13,8 +13,9 @@ import Settings from './pages/Settings'
 import Templates from './pages/Templates'
 
 function RequireAuth({ children }) {
-  const { isAuthed } = useAuth()
+  const { isAuthed, sessionReady } = useAuth()
   if (!isAuthed) return <Navigate to="/login" replace />
+  if (!sessionReady) return <div className="login-page"><p className="muted">Signing in…</p></div>
   return children
 }
 

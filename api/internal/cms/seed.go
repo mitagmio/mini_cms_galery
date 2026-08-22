@@ -23,6 +23,10 @@ func (s *Store) BootSeed() error {
 	if err := s.EnsureSystemTemplates(); err != nil {
 		return err
 	}
+	if err := s.EnsureAboutPage(); err != nil {
+		log.Printf("cms: ensure about page: %v", err)
+		return err
+	}
 	if err := s.EnsureRatesPageAndNav(); err != nil {
 		log.Printf("cms: ensure rates page/nav: %v", err)
 		return err
@@ -77,7 +81,7 @@ func (s *Store) seedDefaults() error {
 		{Slug: "fashion", Title: "FASHION", Theme: ThemePanoramaGallery, SortOrder: 5},
 		{Slug: "editorial", Title: "EDITORIAL", Theme: ThemePanoramaGallery, SortOrder: 6},
 		{Slug: "product", Title: "PRODUCT", Theme: ThemePanoramaGallery, SortOrder: 7},
-		{Slug: "about", Title: "ABOUT", Theme: ThemePanoramaGallery, SortOrder: 8},
+		{Slug: "about", Title: "ABOUT", Theme: ThemeAboutContent, SortOrder: 8, Blocks: defaultAboutBlockSlice()},
 		{Slug: "contact", Title: "CONTACT", Theme: ThemeTextContent, SortOrder: 9, Blocks: []Block{
 			{Type: BlockRichText, Data: MustJSON(map[string]any{"html": `<h2 class="xl-headline">Get in Touch</h2>`})},
 			{Type: BlockContactForm, Data: MustJSON(map[string]any{

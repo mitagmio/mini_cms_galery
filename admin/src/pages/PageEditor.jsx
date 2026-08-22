@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { admin, apiUrl } from '../api'
-import { BLOCK_PALETTE, RATE_FORM_KEYS, RATE_CAPTIONS, BANNER_ASPECTS, DEFAULT_BANNER_ASPECT, FORM_TEMPLATES, allowedBlocksForTheme, bannerFormKey, formKeyFromTemplateId, formTemplateId, formTemplateName, mediaUrl, newBlock, rateBannerData, templateLabel, TEMPLATES } from '../blockTypes'
+import { BLOCK_PALETTE, RATE_FORM_KEYS, RATE_CAPTIONS, BANNER_ASPECTS, DEFAULT_BANNER_ASPECT, FORM_TEMPLATES, allowedBlocksForTheme, bannerFormKey, formKeyFromTemplateId, formTemplateId, formTemplateName, mediaUrl, newBlock, paletteForAllowed, rateBannerData, templateLabel, TEMPLATES } from '../blockTypes'
 import MediaPicker from '../components/MediaPicker'
 import { useToast } from '../toast'
 
@@ -32,11 +32,13 @@ export default function PageEditor() {
     const theme = page?.template || page?.theme
     const allowed = allowedBlocksForTheme(theme)
     if (!allowed) return BLOCK_PALETTE
-    return BLOCK_PALETTE.filter((b) => allowed.includes(b.type))
+    return paletteForAllowed(allowed)
   }, [page?.template, page?.theme])
 
   const isLookbook = (page?.template || page?.theme) === 'lookbook_gallery'
   const isRates = (page?.template || page?.theme) === 'rates_content'
+  const isAbout = (page?.template || page?.theme) === 'about_content'
+  const articleLayout = isAbout || (page?.template || page?.theme) === 'text_content'
 
   useEffect(() => {
     let cancelled = false
@@ -443,6 +445,11 @@ export default function PageEditor() {
               Each Rate banner chooses a form template. Banner size is shared for the whole grid (Grid tab).
             </p>
           ) : null}
+          {isAbout ? (
+            <p className="muted small">
+              First Image is the left portrait. First Rich text is the bio on the right. Extra blocks stack below the pair.
+            </p>
+          ) : null}
         </aside>
 
         <section className="canvas">
@@ -578,6 +585,7 @@ export default function PageEditor() {
             <BlockInspector
               block={selected}
               mediaIndex={mediaIndex}
+              articleLayout={articleLayout}
               formTemplates={formTemplates}
               usedFormKeys={
                 new Set(
@@ -788,6 +796,7 @@ function BlockInspector({
   usedFormKeys = new Set(),
   pageSettings = {},
   onPageSettings,
+  articleLayout = false,
 }) {
   const d = block.data || {}
 
@@ -843,11 +852,12 @@ function BlockInspector({
           <button
             type="button"
             className="secondary"
-            onClick={() => onPick({ field: 'media_id', title: 'Pick gallery image' })}
+            onClick={() => onPick({ field: 'media_id', title: 'Pick image' })}
           >
             Pick
           </button>
         </div>
+        {articleLayout ? null : (
         <button
           type="button"
           className="secondary"
@@ -861,6 +871,7 @@ function BlockInspector({
         >
           Add strip images…
         </button>
+        )}
         <label>
           Alt
           <input value={d.alt || ''} onChange={(e) => onChange({ alt: e.target.value })} />

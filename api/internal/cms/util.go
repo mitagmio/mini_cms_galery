@@ -28,7 +28,18 @@ func MustJSON(v any) json.RawMessage {
 
 func ValidTheme(t string) bool {
 	switch t {
-	case ThemeBAContent, ThemePanoramaGallery, ThemeTextContent, ThemeLookbookGallery, ThemeRatesContent:
+	case ThemeBAContent, ThemePanoramaGallery, ThemeTextContent, ThemeAboutContent, ThemeLookbookGallery, ThemeRatesContent:
+		return true
+	default:
+		return false
+	}
+}
+
+// IsArticleTheme is true for page engines that mix copy + photos in reading order
+// (not panorama / lookbook sliders).
+func IsArticleTheme(theme string) bool {
+	switch theme {
+	case ThemeTextContent, ThemeAboutContent:
 		return true
 	default:
 		return false
@@ -47,7 +58,7 @@ func IsReservedTemplateID(id string) bool {
 
 // ValidThemeList is the human-readable set of generate engines.
 func ValidThemeList() string {
-	return "ba_content, panorama_gallery, text_content, lookbook_gallery, or rates_content"
+	return "ba_content, panorama_gallery, text_content, about_content, lookbook_gallery, or rates_content"
 }
 
 // HrefForPage is the site-root path for a CMS page (homepage → "/").
@@ -93,12 +104,45 @@ func DefaultAllowedBlocks(theme string) []string {
 	case ThemePanoramaGallery, ThemeLookbookGallery:
 		return []string{BlockGalleryImage}
 	case ThemeTextContent:
-		return []string{BlockRichText, BlockContactForm}
+		return []string{BlockRichText, BlockGalleryImage, BlockContactForm}
+	case ThemeAboutContent:
+		return []string{BlockGalleryImage, BlockRichText}
 	case ThemeRatesContent:
 		return []string{BlockRichText, BlockRateBanner}
 	default:
 		return []string{}
 	}
+}
+
+func containsString(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}
+
+func withString(list []string, extra string) []string {
+	if containsString(list, extra) {
+		return list
+	}
+	out := make([]string, len(list)+1)
+	copy(out, list)
+	out[len(list)] = extra
+	return out
+}
+
+func stringsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // PageSettingsMap decodes pages.settings_json (object or empty).

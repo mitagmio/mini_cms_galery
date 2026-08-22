@@ -41,8 +41,12 @@ func TestRenderContactFormTurnstileOptional(t *testing.T) {
 		APIURL:           "https://api.sheyanova.art",
 		TurnstileSiteKey: "0x-site",
 	})
-	if !containsAll(with, `data-sitekey="0x-site"`, "challenges.cloudflare.com") {
+	if !containsAll(with, `data-sitekey="0x-site"`, "challenges.cloudflare.com",
+		`class="js-turnstile"`, `turnstile/v0/api.js?render=explicit`) {
 		t.Fatal(with)
+	}
+	if containsAll(with, " async") || containsAll(with, " defer") || containsAll(with, `class="cf-turnstile"`) {
+		t.Fatal("contact Turnstile must be explicit render without async/defer:\n" + with)
 	}
 }
 

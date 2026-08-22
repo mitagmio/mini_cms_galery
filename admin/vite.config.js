@@ -9,6 +9,10 @@ export default defineConfig({
     proxy: {
       '/api': process.env.VITE_API_URL || 'http://localhost:8080',
       '/media': process.env.VITE_API_URL || 'http://localhost:8080',
+      '/preview': process.env.VITE_API_URL || 'http://localhost:8080',
+      '/assets': process.env.VITE_API_URL || 'http://localhost:8080',
+      '/static': process.env.VITE_API_URL || 'http://localhost:8080',
+      '/fonts': process.env.VITE_API_URL || 'http://localhost:8080',
     },
   },
 })

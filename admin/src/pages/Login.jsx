@@ -1,26 +1,38 @@
 import { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { admin, setToken as persistToken } from '../api'
 import { useAuth } from '../auth'
 import { useToast } from '../toast'
 
 export default function Login() {
   const { isAuthed, setToken } = useAuth()
   const [value, setValue] = useState('')
+  const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
   const toast = useToast()
 
   if (isAuthed) return <Navigate to="/" replace />
 
-  function submit(e) {
+  async function submit(e) {
     e.preventDefault()
     const token = value.trim()
     if (!token) {
       toast.error('Enter admin token')
       return
     }
-    setToken(token)
-    toast.ok('Signed in')
-    navigate('/', { replace: true })
+    setBusy(true)
+    persistToken(token)
+    try {
+      await admin.session.create()
+      setToken(token)
+      toast.ok('Signed in')
+      navigate('/', { replace: true })
+    } catch {
+      persistToken('')
+      toast.error('Invalid token')
+    } finally {
+      setBusy(false)
+    }
   }
 
   return (
@@ -36,9 +48,12 @@ export default function Login() {
             value={value}
             onChange={(e) => setValue(e.target.value)}
             placeholder="ADMIN_TOKEN"
+            disabled={busy}
           />
         </label>
-        <button type="submit">Sign in</button>
+        <button type="submit" disabled={busy}>
+          {busy ? 'Signing in…' : 'Sign in'}
+        </button>
       </form>
     </div>
   )

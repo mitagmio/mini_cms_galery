@@ -418,8 +418,11 @@ func renderContactFooter(f cms.FormField, m RateModal) string {
 	}
 	turnstile := ""
 	if m.TurnstileSiteKey != "" {
+		// Explicit host (not .cf-turnstile): implicit scan would run inside display:none
+		// overlays and never mint a token. Size is omitted — render() only accepts
+		// normal|flexible|compact; Invisible vs Managed is the dashboard widget type.
 		turnstile = fmt.Sprintf(`
-<div class="cf-turnstile" data-sitekey="%s" data-size="invisible"></div>`, esc(m.TurnstileSiteKey))
+<div class="js-turnstile" data-sitekey="%s"></div>`, esc(m.TurnstileSiteKey))
 	}
 	return fmt.Sprintf(`<fieldset class="rate-fieldset rate-contact">
 <legend>%s</legend>

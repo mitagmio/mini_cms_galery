@@ -74,6 +74,9 @@ func (g *Generator) GenerateSite() error {
 	if err := g.copyThemeAssets(); err != nil {
 		return err
 	}
+	if err := g.writeArticleCSS(); err != nil {
+		return err
+	}
 	if err := g.writePagesMeta(); err != nil {
 		return err
 	}
@@ -139,6 +142,7 @@ func (g *Generator) GeneratePage(pageID string) (string, error) {
 		return "", err
 	}
 	_ = g.copyThemeAssets()
+	_ = g.writeArticleCSS()
 	p, err := g.Store.GetPage(pageID)
 	if err != nil {
 		return "", err
@@ -522,6 +526,10 @@ func (g *Generator) writePage(p cms.Page) error {
 		formatData = g.buildFormatData(renderPage)
 	}
 
+	portrait, bio, aboutRest := splitAboutHero(blocks)
+	hasPhoto := strings.TrimSpace(string(portrait)) != ""
+	hasBio := strings.TrimSpace(string(bio)) != ""
+
 	view := map[string]any{
 		"Page": p,
 		"Settings": map[string]any{
@@ -546,6 +554,12 @@ func (g *Generator) writePage(p cms.Page) error {
 		"RateModals":       g.rateModals(p),
 		"BannerGridStyle":  template.CSS(cms.BannerGridStyle(p.Settings)),
 		"TurnstileSiteKey": g.Cfg.TurnstileSiteKey,
+		"AboutPortrait":    portrait,
+		"AboutBio":         bio,
+		"AboutRest":        aboutRest,
+		"AboutHasPhoto":    hasPhoto,
+		"AboutHasBio":      hasBio,
+		"AboutHeroClass":   aboutHeroClass(hasPhoto, hasBio),
 	}
 
 	var buf strings.Builder
@@ -612,6 +626,8 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 	}
 
 	firstComparison := true
+	firstArticleImage := true
+	articleTheme := cms.IsArticleTheme(p.Theme)
 	for i, b := range p.Blocks {
 		var data map[string]any
 		_ = json.Unmarshal(b.Data, &data)
@@ -681,6 +697,7 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			mid, _ := data["media_id"].(string)
 			url, _ := data["url"].(string)
 			alt, _ := data["alt"].(string)
+			caption, _ := data["caption"].(string)
 			src, _ := resolve(mid, url)
 			if strings.TrimSpace(src) == "" {
 				continue
@@ -688,6 +705,28 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			imgSrc := pathURL(src)
 			w, h := g.probeMediaSize(mid, url)
 			dim := imgDimensionAttrs(w, h)
+			if articleTheme {
+				loading := "lazy"
+				extra := ""
+				if firstArticleImage {
+					loading = "eager"
+					firstArticleImage = false
+					if p.Theme == cms.ThemeAboutContent {
+						extra = "about-portrait"
+					}
+				}
+				html = articleFigureHTML(imgSrc, alt, caption, dim, loading, extra)
+				if p.Theme == cms.ThemeTextContent {
+					html = fmt.Sprintf(`
+<div class="_4ORMAT_content_page_row _4ormat_sort_item">
+<div class="eightcol">
+%s
+</div>
+</div>`, html)
+				}
+				out = append(out, renderedBlock{HTML: template.HTML(html), ImageSrc: imgSrc, Alt: alt, Type: cms.BlockGalleryImage, Width: w, Height: h})
+				continue
+			}
 			html = fmt.Sprintf(`
 <div class="asset image asset-await">
 <div class="wrap">
@@ -703,12 +742,16 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 
 		case cms.BlockRichText:
 			raw, _ := data["html"].(string)
-			html = fmt.Sprintf(`
+			if p.Theme == cms.ThemeAboutContent {
+				html = fmt.Sprintf(`<div class="rich-text about-copy">%s</div>`, raw)
+			} else {
+				html = fmt.Sprintf(`
 <div class="_4ORMAT_content_page_row _4ormat_sort_item">
 <div class="eightcol">
 <div class="rich-text">%s</div>
 </div>
 </div>`, raw)
+			}
 
 		case cms.BlockContactForm:
 			nameL, _ := data["name_label"].(string)

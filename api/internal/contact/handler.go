@@ -80,6 +80,7 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 	}
 	req, err := decodeSubmit(r)
 	if err != nil {
+		log.Printf("contact: invalid request ip=%s: %v", ip, err)
 		httpx.WriteError(w, http.StatusBadRequest, "Invalid request.")
 		return
 	}
@@ -115,10 +116,12 @@ func (h *Handler) Submit(w http.ResponseWriter, r *http.Request) {
 			body, htmlBody = formatRatesEmail(formKind, req, name, emailAddr, ip, schema)
 		}
 	default:
+		log.Printf("contact: reject form=%s ip=%s reason=unknown form", formKind, ip)
 		httpx.WriteError(w, http.StatusBadRequest, "Unknown form.")
 		return
 	}
 	if verr != "" {
+		log.Printf("contact: reject form=%s ip=%s reason=%s", formKind, ip, verr)
 		httpx.WriteError(w, http.StatusBadRequest, verr)
 		return
 	}

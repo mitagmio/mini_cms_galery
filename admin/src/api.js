@@ -50,7 +50,7 @@ export async function api(path, options = {}) {
     payload = typeof body === 'string' ? body : JSON.stringify(body)
   }
 
-  const res = await fetch(apiUrl(path), { method, headers, body: payload })
+  const res = await fetch(apiUrl(path), { method, headers, body: payload, credentials: 'include' })
   const text = await res.text()
   let data = null
   if (text) {
@@ -73,6 +73,11 @@ export async function api(path, options = {}) {
 }
 
 export const admin = {
+  me: () => api('/api/admin/me'),
+  session: {
+    create: () => api('/api/admin/session', { method: 'POST' }),
+    destroy: () => api('/api/admin/session', { method: 'DELETE', auth: false }),
+  },
   settings: {
     get: () => api('/api/admin/settings'),
     put: (body) => api('/api/admin/settings', { method: 'PUT', body }),

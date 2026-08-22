@@ -83,12 +83,12 @@ func TestGenerateRatesPreviewIncludesDraftPublishOmits(t *testing.T) {
 		`/assets/theme/rates/retouch-level-4.gif`,
 		`rate-retouch-grid`,
 		`rate-retouch__frame`,
-		`rates.css?v=11`,
+		`rates.css?v=12`,
 		`--rate-banner-aspect: 3 / 4`,
 		`rates-dialog`,
 		`rates-kicker`,
-		`rates.js?v=2`,
-		`form-submit.js`,
+		`rates.js?v=5`,
+		`form-submit.js?v=4`,
 		`action="https://api.sheyanova.art/api/contact"`,
 		`>RATES</a>`,
 		`>ABOUT</a>`,
@@ -204,5 +204,50 @@ func TestGenerateRateBannerUsesFormTemplateID(t *testing.T) {
 		if !strings.Contains(html, need) {
 			t.Fatalf("missing %q", need)
 		}
+	}
+}
+
+func TestGenerateRatesTurnstileExplicitWidget(t *testing.T) {
+	s := testStore(t)
+	if _, err := s.PutSettings(cms.SiteSettings{SiteName: "Test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnsureSystemTemplates(); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnsureRatesPageAndNav(); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	g, err := New(s, Config{
+		OutDir:           out,
+		UploadDir:        filepath.Join(t.TempDir(), "up"),
+		PreviewBase:      "/preview",
+		PathPrefix:       "/preview",
+		TurnstileSiteKey: "0x-site",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.GenerateSite(); err != nil {
+		t.Fatal(err)
+	}
+	htmlb, err := os.ReadFile(filepath.Join(out, "rates", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(htmlb)
+	if !strings.Contains(html, `class="js-turnstile"`) || !strings.Contains(html, `data-sitekey="0x-site"`) {
+		t.Fatal("rates forms must render an explicit Turnstile host for overlay widgets")
+	}
+	if !strings.Contains(html, `src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>`) {
+		t.Fatal("rates page must load Turnstile in explicit-render mode without async/defer")
+	}
+	if strings.Contains(html, `api.js?render=explicit" defer`) || strings.Contains(html, `api.js?render=explicit" async`) ||
+		strings.Contains(html, " async defer") {
+		t.Fatal("turnstile.ready() requires api.js without async/defer")
+	}
+	if strings.Contains(html, `class="cf-turnstile"`) {
+		t.Fatal("hidden rate modals must not use implicit cf-turnstile (empty token on submit)")
 	}
 }

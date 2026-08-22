@@ -357,7 +357,7 @@ func (s *Store) EnsureSystemTemplates() error {
 			}
 		}
 	}
-	return nil
+	return s.ensureArticleImageAllowedBlocks()
 }
 
 func jsonArrayAny(raw json.RawMessage) any {
@@ -403,13 +403,23 @@ func builtinSystemTemplates() []Template {
 			ID:            ThemeTextContent,
 			Theme:         ThemeTextContent,
 			Name:          "Text / blank",
-			Description:   "Rich text and optional contact form.",
-			AllowedBlocks: []string{BlockRichText, BlockContactForm},
+			Description:   "Rich text, images, and optional contact form.",
+			AllowedBlocks: []string{BlockRichText, BlockGalleryImage, BlockContactForm},
 			DefaultBlocks: MustJSON([]map[string]any{
 				{"type": BlockRichText, "data": map[string]any{"html": "<p></p>"}},
 			}),
 			IsSystem:  true,
 			SortOrder: 2,
+		},
+		{
+			ID:            ThemeAboutContent,
+			Theme:         ThemeAboutContent,
+			Name:          "About",
+			Description:   "Portrait on the left, bio on the right — centered with wide margins.",
+			AllowedBlocks: []string{BlockGalleryImage, BlockRichText},
+			DefaultBlocks: MustJSON(DefaultAboutBlocks()),
+			IsSystem:      true,
+			SortOrder:     2,
 		},
 		{
 			ID:            ThemeLookbookGallery,

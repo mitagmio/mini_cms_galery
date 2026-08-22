@@ -1,0 +1,117 @@
+/* About — centered column, photo left / bio right. Tokens: #2f2f2f on simple-page bg. */
+
+body.about-page {
+  color: #2f2f2f;
+}
+
+.about-shell {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 64px 40px 96px;
+}
+
+.about-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.38fr) minmax(0, 0.62fr);
+  column-gap: 48px;
+  row-gap: 28px;
+  align-items: start;
+  padding: 28px 0 36px;
+  border-top: 1px solid rgba(47, 47, 47, 0.16);
+  border-bottom: 1px solid rgba(47, 47, 47, 0.16);
+}
+
+.about-hero--solo {
+  grid-template-columns: 1fr;
+}
+
+.about-hero--photo-only .about-hero__photo {
+  max-width: 38%;
+}
+
+.about-hero__photo,
+.about-hero__copy,
+.about-rest {
+  min-width: 0;
+}
+
+.about-portrait,
+.about-figure,
+.article-figure {
+  margin: 0;
+  padding: 0;
+}
+
+.about-portrait img,
+.about-figure img,
+.article-figure img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  object-position: top center;
+}
+
+.about-hero__copy,
+.about-rest,
+.article-figure,
+.about-page .rich-text {
+  color: #2f2f2f;
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.about-hero__copy .rich-text > *:first-child,
+.about-rest .rich-text > *:first-child {
+  margin-top: 0;
+}
+
+.about-hero__copy .rich-text p,
+.about-rest .rich-text p {
+  margin: 0 0 1em;
+}
+
+.about-caption {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #2f2f2f;
+  opacity: 0.72;
+}
+
+.about-rest {
+  margin-top: 40px;
+}
+
+.about-rest .about-figure,
+.about-rest .article-figure {
+  margin: 0 0 32px;
+}
+
+.about-rest .about-copy {
+  margin: 0 0 28px;
+}
+
+/* Text / blank pages: images as figures in the copy column */
+.content_page .article-figure {
+  margin: 0 0 28px;
+}
+
+@media (max-width: 760px) {
+  .about-shell {
+    padding: 36px 22px 72px;
+  }
+
+  .about-hero,
+  .about-hero--solo {
+    grid-template-columns: 1fr;
+  }
+
+  .about-hero--photo-only .about-hero__photo {
+    max-width: 100%;
+  }
+}

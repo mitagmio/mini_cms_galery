@@ -9,6 +9,7 @@ const (
 	ThemeBAContent       = "ba_content"
 	ThemePanoramaGallery = "panorama_gallery"
 	ThemeTextContent     = "text_content"
+	ThemeAboutContent    = "about_content"
 	ThemeLookbookGallery = "lookbook_gallery"
 	ThemeRatesContent    = "rates_content"
 
@@ -264,7 +265,7 @@ type PublishHistory struct {
 }
 
 // Template is a reusable blueprint. kind=page uses a generate engine
-// (ba_content | panorama_gallery | text_content | lookbook_gallery | rates_content).
+// (ba_content | panorama_gallery | text_content | about_content | lookbook_gallery | rates_content).
 // kind=form is a named Rate overlay (Fashion, Beauty, …) — not a page engine.
 // System page rows use id == theme; system form rows use id == form_<key>.
 type Template struct {

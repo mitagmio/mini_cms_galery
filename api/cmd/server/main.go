@@ -116,12 +116,14 @@ func main() {
 	})
 
 	mux.Handle("/api/admin/me", guard.Middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+		if r.Method != http.MethodGet && r.Method != http.MethodPost {
 			httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
+		guard.SetSessionCookie(w, r)
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "role": "admin"})
 	})))
+	mux.HandleFunc("/api/admin/session", guard.HandleSession)
 
 	// Admin CMS API (Bearer ADMIN_TOKEN)
 	mux.Handle("/api/admin/settings", guard.Middleware(http.HandlerFunc(cmsH.Settings)))
@@ -156,8 +158,8 @@ func main() {
 		log.Printf("contact: TURNSTILE_SITE_KEY set without TURNSTILE_SECRET_KEY")
 	}
 
-	mux.Handle("/media/", http.StripPrefix("/media/", http.FileServer(http.Dir(cfg.UploadDir))))
-	mux.Handle("/preview/", http.StripPrefix("/preview/", http.FileServer(http.Dir(cfg.PreviewDir))))
+	mux.Handle("/media/", guard.BearerOrCookie(http.StripPrefix("/media/", auth.FileServer(cfg.UploadDir))))
+	mux.Handle("/preview/", guard.BearerOrCookie(http.StripPrefix("/preview/", auth.FileServer(cfg.PreviewDir))))
 
 	handler := withCORS(cfg.CORSOrigins, mux)
 
@@ -266,6 +268,7 @@ func withCORS(origins []string, next http.Handler) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 		} else if _, ok := allowed[origin]; ok {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Vary", "Origin")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")

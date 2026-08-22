@@ -9,6 +9,7 @@ import {
   formKeyFromTemplateId,
   formTemplateId,
   formTemplateName,
+  paletteForAllowed,
   newBlock,
   rateBannerData,
   RATE_CAPTIONS,
@@ -53,8 +54,11 @@ export default function TemplateEditor({ tmpl, apiReady, onCancel, onSaved }) {
 
   const palette = useMemo(() => {
     if (isForm) return FORM_BLOCK_PALETTE
-    return BLOCK_PALETTE.filter((b) => allowed.includes(b.type))
-  }, [isForm, allowed])
+    if (!allowed.length) {
+      return paletteForAllowed(ALLOWED_BLOCKS_BY_THEME[theme] || ALLOWED_BLOCKS_BY_THEME.text_content)
+    }
+    return paletteForAllowed(allowed)
+  }, [isForm, allowed, theme])
 
   useEffect(() => {
     let cancelled = false
@@ -70,6 +74,8 @@ export default function TemplateEditor({ tmpl, apiReady, onCancel, onSaved }) {
         setSelectedId(nextBlocks[0]?.id || null)
         if (Array.isArray(full.allowed_blocks) && full.allowed_blocks.length) {
           setAllowed([...full.allowed_blocks])
+        } else if (ALLOWED_BLOCKS_BY_THEME[full.theme || theme]) {
+          setAllowed([...(ALLOWED_BLOCKS_BY_THEME[full.theme || theme] || [])])
         }
         const file = full.file_source || ''
         const stored = full.source || ''

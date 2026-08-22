@@ -389,6 +389,18 @@ func ratesFashionPayload() map[string]any {
 	return p
 }
 
+func TestSubmitRatesFromPreviewOrigin(t *testing.T) {
+	fs := &fakeSender{}
+	h, _ := testHandler(t, fs)
+	rec := postJSON(h.Submit, "https://api.sheyanova.art", ratesFashionPayload(), nil)
+	if rec.Code != 200 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if fs.n != 1 {
+		t.Fatalf("sent=%d", fs.n)
+	}
+}
+
 func TestSubmitRatesFashionSuccess(t *testing.T) {
 	fs := &fakeSender{}
 	h, _ := testHandler(t, fs)

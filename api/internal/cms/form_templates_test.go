@@ -12,7 +12,7 @@ func TestFormTemplatesAreNotPageEngines(t *testing.T) {
 		}
 	}
 	for _, th := range []string{
-		ThemeBAContent, ThemePanoramaGallery, ThemeTextContent, ThemeLookbookGallery, ThemeRatesContent,
+		ThemeBAContent, ThemePanoramaGallery, ThemeTextContent, ThemeAboutContent, ThemeLookbookGallery, ThemeRatesContent,
 	} {
 		if !ValidTheme(th) {
 			t.Fatalf("%s must remain a valid theme", th)

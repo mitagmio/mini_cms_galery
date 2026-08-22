@@ -69,8 +69,17 @@ const FALLBACK_STARTERS = [
     theme: 'text_content',
     name: 'Blank / text',
     description: TEMPLATES.find((t) => t.id === 'text_content').description,
-    allowed_blocks: ['rich_text', 'contact_form'],
+    allowed_blocks: ['rich_text', 'gallery_image', 'contact_form'],
     default_blocks: [{ type: 'rich_text', data: newBlock('rich_text').data }],
+    is_system: true,
+  },
+  {
+    id: 'about_content',
+    theme: 'about_content',
+    name: 'About',
+    description: TEMPLATES.find((t) => t.id === 'about_content').description,
+    allowed_blocks: ['gallery_image', 'rich_text'],
+    default_blocks: DEFAULT_BLOCKS_BY_THEME.about_content(),
     is_system: true,
   },
   {

@@ -20,10 +20,16 @@ export const TEMPLATES = [
   {
     id: 'text_content',
     label: 'Text / blank',
-    description: 'Rich text and optional contact form.',
+    description: 'Rich text, images, and optional contact form.',
     starterBlocks: [
       { type: 'rich_text', data: { html: '<p></p>' } },
     ],
+  },
+  {
+    id: 'about_content',
+    label: 'About',
+    description: 'Portrait on the left, bio on the right — centered with wide margins.',
+    starterBlocks: [],
   },
   {
     id: 'rates_content',
@@ -106,7 +112,8 @@ export const ALLOWED_BLOCKS_BY_THEME = {
   ba_content: ['comparison_slider'],
   panorama_gallery: ['gallery_image'],
   lookbook_gallery: ['gallery_image'],
-  text_content: ['rich_text', 'contact_form'],
+  text_content: ['rich_text', 'gallery_image', 'contact_form'],
+  about_content: ['gallery_image', 'rich_text'],
   rates_content: ['rich_text', 'rate_banner'],
 }
 
@@ -123,8 +130,8 @@ export const BLOCK_PALETTE = [
   },
   {
     type: 'gallery_image',
-    label: 'Gallery image',
-    hint: 'One image in a panorama strip or lookbook',
+    label: 'Image',
+    hint: 'Portrait (About) or a photo in the article / gallery',
     defaultData: () => ({
       media_id: null,
       alt: '',
@@ -182,6 +189,10 @@ export const DEFAULT_BLOCKS_BY_THEME = {
     { type: 'gallery_image', data: newBlock('gallery_image').data },
   ],
   text_content: () => [{ type: 'rich_text', data: newBlock('rich_text').data }],
+  about_content: () => [
+    { type: 'gallery_image', data: newBlock('gallery_image').data },
+    { type: 'rich_text', data: newBlock('rich_text').data },
+  ],
   rates_content: () => [
     {
       type: 'rich_text',
@@ -204,5 +215,16 @@ export function mediaUrl(item) {
 }
 
 export function allowedBlocksForTheme(theme) {
-  return ALLOWED_BLOCKS_BY_THEME[theme] || null
+  if (ALLOWED_BLOCKS_BY_THEME[theme]) return ALLOWED_BLOCKS_BY_THEME[theme]
+  const t = String(theme || '').toLowerCase()
+  if (t === 'blank' || t.includes('blank')) {
+    return ALLOWED_BLOCKS_BY_THEME.text_content
+  }
+  return null
+}
+
+export function paletteForAllowed(allowed) {
+  if (!allowed || !allowed.length) return BLOCK_PALETTE
+  const byType = Object.fromEntries(BLOCK_PALETTE.map((b) => [b.type, b]))
+  return allowed.map((t) => byType[t]).filter(Boolean)
 }

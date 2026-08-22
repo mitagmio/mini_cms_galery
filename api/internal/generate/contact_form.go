@@ -53,12 +53,12 @@ var contactFormTmpl = template.Must(template.New("contact_form").Parse(`
 <input class="btn primary _4ORMAT_module_contact_btn _4ORMAT_module_contact_input" type="submit" value="{{.SubmitLabel}}"/>
 </fieldset>
 {{- if .TurnstileSiteKey }}
-<div class="cf-turnstile" data-sitekey="{{.TurnstileSiteKey}}" data-size="invisible"></div>
-<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+<div class="js-turnstile" data-sitekey="{{.TurnstileSiteKey}}"></div>
+<script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"></script>
 {{- end }}
 </form>
 <noscript><p class="contact_form__status is-err">JavaScript is required to send this form.</p></noscript>
-<script src="/assets/theme/form-submit.js?v=1"></script>
+<script src="/assets/theme/form-submit.js?v=4"></script>
 <script>
 (function(){
   var form = document.getElementById({{.FormIDJSON}});
