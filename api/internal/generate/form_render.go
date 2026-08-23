@@ -359,22 +359,42 @@ func renderRetouch(f cms.FormField) string {
 		if (f.Required() || true) && i == 0 {
 			req = " required"
 		}
-		img := o.Image
-		if img == "" {
-			img = fmt.Sprintf("/assets/theme/rates/retouch-level-%s.gif", o.Value)
+		img := retouchImageURL(o)
+		plaque := strings.TrimSpace(o.Plaque)
+		if plaque == "" {
+			plaque = cms.DefaultRetouchPlaque(o.Value)
 		}
 		text := o.Label
 		if !strings.HasPrefix(strings.TrimSpace(text), o.Value) {
 			text = o.Value + ". " + text
 		}
+		alt := plaque
+		if alt == "" {
+			alt = "Retouch level " + o.Value
+		}
 		fmt.Fprintf(&b, `<label class="rate-retouch"><input type="radio" name="%s" value="%s"%s/>
-<span class="rate-retouch__frame"><img src="%s" alt="Retouch level %s"/></span>
+<span class="rate-retouch__frame"><img src="%s" alt="%s"/><span class="rate-retouch__plaque">%s</span></span>
 <span class="rate-retouch__text">%s</span>
 </label>
-`, esc(name), esc(o.Value), req, esc(img), esc(o.Value), esc(text))
+`, esc(name), esc(o.Value), req, esc(img), esc(alt), esc(plaque), esc(text))
 	}
 	b.WriteString("</div>\n</fieldset>\n")
 	return b.String()
+}
+
+const retouchAssetVersion = "1"
+
+func retouchImageURL(o cms.FormOption) string {
+	img := strings.TrimSpace(o.Image)
+	path, _, _ := strings.Cut(img, "?")
+	if path == "" || strings.Contains(path, "/assets/theme/rates/retouch-level-") {
+		v := strings.TrimSpace(o.Value)
+		if v == "" {
+			v = "1"
+		}
+		return fmt.Sprintf("/assets/theme/rates/retouch-level-%s.webp?v=%s", v, retouchAssetVersion)
+	}
+	return img
 }
 
 func renderContactFooter(f cms.FormField, m RateModal) string {

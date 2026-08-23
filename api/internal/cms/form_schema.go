@@ -13,9 +13,10 @@ type FormField struct {
 }
 
 type FormOption struct {
-	Value string `json:"value"`
-	Label string `json:"label"`
-	Image string `json:"image,omitempty"`
+	Value  string `json:"value"`
+	Label  string `json:"label"`
+	Image  string `json:"image,omitempty"`
+	Plaque string `json:"plaque,omitempty"`
 }
 
 func DefaultFormFieldTypes() []string {
@@ -198,14 +199,18 @@ func (f FormField) Options() []FormOption {
 				val := strings.TrimSpace(mapStringVal(t, "value"))
 				lab := strings.TrimSpace(mapStringVal(t, "label"))
 				img := strings.TrimSpace(mapStringVal(t, "image"))
+				plaque := strings.TrimSpace(mapStringVal(t, "plaque"))
 				if val == "" {
 					val = lab
 				}
 				if lab == "" {
 					lab = val
 				}
+				if plaque == "" && f.Type == BlockFormRetouch {
+					plaque = DefaultRetouchPlaque(val)
+				}
 				if val != "" {
-					out = append(out, FormOption{Value: val, Label: lab, Image: img})
+					out = append(out, FormOption{Value: val, Label: lab, Image: img, Plaque: plaque})
 				}
 			}
 		}
@@ -284,12 +289,35 @@ func SchemaHasInput(fields []FormField) bool {
 	return false
 }
 
+func DefaultRetouchPlaque(value string) string {
+	switch strings.TrimSpace(value) {
+	case "1":
+		return "LIGHT / RAW"
+	case "2":
+		return "NATURAL"
+	case "3":
+		return "CLEAN UP"
+	case "4":
+		return "FULL TOUCH UP"
+	default:
+		return ""
+	}
+}
+
+func DefaultRetouchImage(value string) string {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return ""
+	}
+	return "/assets/theme/rates/retouch-level-" + v + ".webp"
+}
+
 func DefaultRetouchOptions() []FormOption {
 	return []FormOption{
-		{Value: "1", Image: "/assets/theme/rates/retouch-level-1.gif", Label: "Light skin retouching that doesn't affect the shadow and age changes to leave your photo as natural as possible"},
-		{Value: "2", Image: "/assets/theme/rates/retouch-level-2.gif", Label: "Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics and texture kept intact"},
-		{Value: "3", Image: "/assets/theme/rates/retouch-level-3.gif", Label: "Focus is on the skin retouching: removing all imperfections, smoothing wrinkles, yet saving natural texture"},
-		{Value: "4", Image: "/assets/theme/rates/retouch-level-4.gif", Label: "Retouching of blemishes, scars, improving texture, removing of unwanted wrinkles, adjusting highlights and features"},
+		{Value: "1", Image: DefaultRetouchImage("1"), Plaque: DefaultRetouchPlaque("1"), Label: "Light skin retouching that doesn't affect the shadow and age changes to leave your photo as natural as possible"},
+		{Value: "2", Image: DefaultRetouchImage("2"), Plaque: DefaultRetouchPlaque("2"), Label: "Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics and texture kept intact"},
+		{Value: "3", Image: DefaultRetouchImage("3"), Plaque: DefaultRetouchPlaque("3"), Label: "Focus is on the skin retouching: removing all imperfections, smoothing wrinkles, yet saving natural texture"},
+		{Value: "4", Image: DefaultRetouchImage("4"), Plaque: DefaultRetouchPlaque("4"), Label: "Retouching of blemishes, scars, improving texture, removing of unwanted wrinkles, adjusting highlights and features"},
 	}
 }
 
@@ -333,7 +361,7 @@ func pairOpts(pairs [][2]string) []map[string]any {
 func retouchOpts() []map[string]any {
 	out := make([]map[string]any, 0, 4)
 	for _, o := range DefaultRetouchOptions() {
-		out = append(out, map[string]any{"value": o.Value, "label": o.Label, "image": o.Image})
+		out = append(out, map[string]any{"value": o.Value, "label": o.Label, "image": o.Image, "plaque": o.Plaque})
 	}
 	return out
 }

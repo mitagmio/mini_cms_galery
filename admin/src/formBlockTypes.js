@@ -12,7 +12,7 @@ export const FORM_BLOCK_PALETTE = [
   {
     type: 'form_retouch_level',
     label: 'Retouch-level picker',
-    hint: 'Images + labels (existing GIFs)',
+    hint: 'Images + News Gothic plaques',
     defaultData: () => ({
       name: 'Retouch_level',
       label: 'Retouch level',
@@ -21,7 +21,8 @@ export const FORM_BLOCK_PALETTE = [
       options: [1, 2, 3, 4].map((n) => ({
         value: String(n),
         label: `Level ${n}`,
-        image: `/assets/theme/rates/retouch-level-${n}.gif`,
+        image: `/assets/theme/rates/retouch-level-${n}.webp`,
+        plaque: ['LIGHT / RAW', 'NATURAL', 'CLEAN UP', 'FULL TOUCH UP'][n - 1],
       })),
     }),
   },
@@ -91,6 +92,7 @@ export function optionList(data) {
       value: o?.value || o?.label || '',
       label: o?.label || o?.value || '',
       image: o?.image || '',
+      plaque: o?.plaque || '',
     }
   })
 }

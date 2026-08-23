@@ -590,11 +590,18 @@ function FormFieldInspector({ block, onChange, onDelete }) {
                 onChange={(e) => setOpt(i, { value: e.target.value })}
               />
               {block.type === 'form_retouch_level' && (
-                <input
-                  value={o.image || ''}
-                  placeholder="Image URL"
-                  onChange={(e) => setOpt(i, { image: e.target.value })}
-                />
+                <>
+                  <input
+                    value={o.image || ''}
+                    placeholder="Image URL"
+                    onChange={(e) => setOpt(i, { image: e.target.value })}
+                  />
+                  <input
+                    value={o.plaque || ''}
+                    placeholder="Plaque"
+                    onChange={(e) => setOpt(i, { plaque: e.target.value })}
+                  />
+                </>
               )}
               <button
                 type="button"

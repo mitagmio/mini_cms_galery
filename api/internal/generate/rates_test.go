@@ -79,11 +79,14 @@ func TestGenerateRatesPreviewIncludesDraftPublishOmits(t *testing.T) {
 		`data-rate-date`,
 		`placeholder="YYYY-MM-DD"`,
 		`rates-dialog-close`,
-		`/assets/theme/rates/retouch-level-1.gif`,
-		`/assets/theme/rates/retouch-level-4.gif`,
+		`/assets/theme/rates/retouch-level-1.webp`,
+		`/assets/theme/rates/retouch-level-4.webp`,
 		`rate-retouch-grid`,
 		`rate-retouch__frame`,
-		`rates.css?v=12`,
+		`rate-retouch__plaque`,
+		`LIGHT / RAW`,
+		`FULL TOUCH UP`,
+		`rates.css?v=14`,
 		`--rate-banner-aspect: 3 / 4`,
 		`rates-dialog`,
 		`rates-kicker`,
@@ -121,8 +124,11 @@ func TestGenerateRatesPreviewIncludesDraftPublishOmits(t *testing.T) {
 	if strings.Count(html, `class="rate-banner`) < 6 {
 		t.Fatalf("want 6 banners, html banners=%d", strings.Count(html, `class="rate-banner`))
 	}
-	if strings.Count(html, `/assets/theme/rates/retouch-level-1.gif`) != 4 {
-		t.Fatalf("want retouch GIFs on fashion/beauty/lookbook/editorial only")
+	if strings.Count(html, `/assets/theme/rates/retouch-level-1.webp`) != 4 {
+		t.Fatalf("want retouch animations on fashion/beauty/lookbook/editorial only")
+	}
+	if strings.Contains(html, `retouchclub`) || strings.Contains(html, `retouch-level-1.gif`) {
+		t.Fatal("rates forms must not hotlink retouchclub or keep RC GIFs")
 	}
 	if strings.Count(html, `rates-dialog-close`) < 6 {
 		t.Fatalf("each modal needs a close control")
