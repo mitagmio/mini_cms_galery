@@ -382,7 +382,7 @@ func renderRetouch(f cms.FormField) string {
 	return b.String()
 }
 
-const retouchAssetVersion = "1"
+const retouchAssetVersion = "3"
 
 func retouchImageURL(o cms.FormOption) string {
 	img := strings.TrimSpace(o.Image)
