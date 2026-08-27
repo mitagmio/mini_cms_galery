@@ -185,6 +185,8 @@ func DefaultRateBannerData(formKey string) map[string]any {
 		"start_from_label": "start from",
 		"price":            "",
 		"currency":         "$",
+		"text_color":       "", // empty = Auto (luminance at generate)
+		"text_backdrop":    true, // soft white plate under overlay text
 	}
 }
 

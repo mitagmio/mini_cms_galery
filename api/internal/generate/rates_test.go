@@ -86,7 +86,7 @@ func TestGenerateRatesPreviewIncludesDraftPublishOmits(t *testing.T) {
 		`rate-retouch__plaque`,
 		`LIGHT / RAW`,
 		`FULL TOUCH UP`,
-		`rates.css?v=16`,
+		`rates.css?v=22`,
 		`--rate-banner-aspect: 3 / 4`,
 		`rates-dialog`,
 		`rates-kicker`,

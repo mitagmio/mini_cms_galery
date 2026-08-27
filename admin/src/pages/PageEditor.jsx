@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { admin, apiUrl } from '../api'
-import { BLOCK_PALETTE, RATE_FORM_KEYS, RATE_CAPTIONS, BANNER_ASPECTS, DEFAULT_BANNER_ASPECT, FORM_TEMPLATES, allowedBlocksForTheme, bannerFormKey, formKeyFromTemplateId, formTemplateId, formTemplateName, mediaThumbUrl, newBlock, paletteForAllowed, rateBannerData, templateLabel, TEMPLATES } from '../blockTypes'
+import { BLOCK_PALETTE, RATE_FORM_KEYS, RATE_CAPTIONS, RATE_TEXT_COLOR_PRESETS, BANNER_ASPECTS, DEFAULT_BANNER_ASPECT, FORM_TEMPLATES, allowedBlocksForTheme, bannerFormKey, formKeyFromTemplateId, formTemplateId, formTemplateName, mediaThumbUrl, newBlock, normalizeRateTextColor, paletteForAllowed, rateBannerData, rateTextColorEnterCustom, rateTextColorPickerHex, rateTextColorSelectValue, templateLabel, TEMPLATES } from '../blockTypes'
 import MediaPicker from '../components/MediaPicker'
 import { useToast } from '../toast'
 
@@ -754,10 +754,19 @@ function BlockPreview({ block, mediaIndex }) {
   if (block.type === 'rate_banner') {
     const price = String(d.price || '').trim()
     const key = bannerFormKey(d)
+    const textColor = normalizeRateTextColor(d.text_color)
+    const overlayStyle =
+      textColor === 'outline'
+        ? { color: '#fff', WebkitTextStroke: '0.5px #000', textShadow: '0 0 1px #000' }
+        : textColor && textColor.startsWith('#')
+          ? { color: textColor }
+          : undefined
+    const textLabel =
+      textColor === 'outline' ? 'White + black outline' : textColor || 'Auto'
     return (
       <div className="rate-banner-preview">
         <Thumb media={mediaIndex[d.media_id]} label="Tile" />
-        <div className="rate-banner-preview__overlay">
+        <div className="rate-banner-preview__overlay" style={overlayStyle}>
           <strong>{d.caption || RATE_CAPTIONS[key] || 'Category'}</strong>
           <span className="muted">{formTemplateName(key)}</span>
           {price ? (
@@ -766,6 +775,7 @@ function BlockPreview({ block, mediaIndex }) {
             </span>
           ) : null}
           {d.start_from_label ? <span className="muted">{d.start_from_label}</span> : null}
+          <span className="muted">Text: {textLabel}</span>
         </div>
       </div>
     )
@@ -823,6 +833,67 @@ function RatesGridFields({ settings, onChange, compact }) {
         </p>
       </fieldset>
     </div>
+  )
+}
+
+function RateBannerTextColorField({ value, onChange }) {
+  const normalized = normalizeRateTextColor(value)
+  const selectValue = rateTextColorSelectValue(value)
+  const hexForPicker = rateTextColorPickerHex(value)
+  return (
+    <fieldset className="rates-text-color-fields">
+      <legend>Text color</legend>
+      <label>
+        Overlay
+        <select
+          value={selectValue}
+          onChange={(e) => {
+            const id = e.target.value
+            if (id === 'auto') {
+              onChange({ text_color: '' })
+              return
+            }
+            if (id === 'custom') {
+              onChange({ text_color: rateTextColorEnterCustom(value) })
+              return
+            }
+            const p = RATE_TEXT_COLOR_PRESETS.find((x) => x.id === id)
+            onChange({ text_color: p?.value || '' })
+          }}
+        >
+          {RATE_TEXT_COLOR_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+          <option value="custom">Custom…</option>
+        </select>
+      </label>
+      {selectValue === 'custom' ? (
+        <div className="field-row rate-text-color-custom">
+          <input
+            type="color"
+            aria-label="Custom overlay color"
+            value={hexForPicker}
+            onChange={(e) => onChange({ text_color: e.target.value })}
+          />
+          <input
+            value={value || ''}
+            placeholder="#1a4a7a"
+            onChange={(e) => onChange({ text_color: e.target.value })}
+          />
+        </div>
+      ) : null}
+      <p className="muted">
+        {selectValue === 'auto'
+          ? 'Auto: charcoal on light photos, white on dark (sampled at generate). Placeholders stay charcoal.'
+          : selectValue === 'custom'
+            ? `Custom hex on the overlay (saved as text_color). Current: ${normalized || value || '—'}`
+            : selectValue === 'outline'
+              ? 'outline'
+              : normalized || '—'}
+      </p>
+    </fieldset>
   )
 }
 
@@ -1053,6 +1124,19 @@ function BlockInspector({
           Currency
           <input value={d.currency || ''} onChange={(e) => onChange({ currency: e.target.value })} />
         </label>
+        <RateBannerTextColorField
+          value={d.text_color}
+          onChange={onChange}
+        />
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={d.text_backdrop !== false}
+            onChange={(e) => onChange({ text_backdrop: e.target.checked })}
+          />
+          Text backdrop
+        </label>
+        <p className="muted">Soft white plate under price / caption. On by default.</p>
         <button type="button" className="secondary danger" onClick={onDelete}>
           Delete block
         </button>

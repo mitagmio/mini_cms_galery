@@ -40,7 +40,40 @@ func mapString(data map[string]any, key string) string {
 	}
 }
 
-func renderRateBanner(data map[string]any, src string) string {
+// mapBoolDefaultTrue treats missing/nil as true (backwards compatible for text_backdrop).
+func mapBoolDefaultTrue(data map[string]any, key string) bool {
+	if data == nil {
+		return true
+	}
+	v, ok := data[key]
+	if !ok || v == nil {
+		return true
+	}
+	switch t := v.(type) {
+	case bool:
+		return t
+	case string:
+		s := strings.TrimSpace(strings.ToLower(t))
+		if s == "" {
+			return true
+		}
+		return s != "false" && s != "0" && s != "off" && s != "no"
+	case float64:
+		return t != 0
+	case int:
+		return t != 0
+	case json.Number:
+		n, err := t.Float64()
+		if err != nil {
+			return true
+		}
+		return n != 0
+	default:
+		return true
+	}
+}
+
+func (g *Generator) renderRateBanner(data map[string]any, src, analyzePath string) string {
 	key := cms.RateFormKeyFromData(data)
 	caption := strings.TrimSpace(mapString(data, "caption"))
 	if caption == "" && key != "" {
@@ -56,11 +89,17 @@ func renderRateBanner(data map[string]any, src string) string {
 	esc := template.HTMLEscapeString
 	cls := "rate-banner"
 	media := ""
-	if strings.TrimSpace(src) != "" {
+	hasImage := strings.TrimSpace(src) != ""
+	if hasImage {
 		imgSrc := pathURL(src)
 		media = fmt.Sprintf(`<img class="rate-banner__img" src="%s" alt="%s" loading="lazy"/>`, imgSrc, esc(alt))
 	} else {
 		cls += " is-placeholder"
+	}
+	toneCls, overlayStyle := g.resolveRateOverlayTone(mapString(data, "text_color"), analyzePath, hasImage)
+	cls += toneCls
+	if mapBoolDefaultTrue(data, "text_backdrop") {
+		cls += " rate-banner--text-backdrop"
 	}
 	priceHTML := ""
 	if price != "" {
@@ -85,9 +124,9 @@ func renderRateBanner(data map[string]any, src string) string {
 	}
 	return fmt.Sprintf(
 		`<button type="button" class="%s" data-rate-key="%s"%s aria-haspopup="dialog"%s>
-%s<div class="rate-banner__overlay"><div class="rate-banner__meta">%s%s</div><span class="rate-banner__caption">%s</span></div>
+%s<div class="rate-banner__overlay"%s><div class="rate-banner__plate"><div class="rate-banner__meta">%s%s</div><span class="rate-banner__caption">%s</span></div></div>
 </button>`,
-		cls, esc(key), bannerID, controls, media, priceHTML, fromHTML, esc(caption),
+		cls, esc(key), bannerID, controls, media, overlayStyle, priceHTML, fromHTML, esc(caption),
 	)
 }
 

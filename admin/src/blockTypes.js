@@ -105,7 +105,72 @@ export function rateBannerData(formKey) {
     start_from_label: 'start from',
     price: '',
     currency: '$',
+    text_color: '', // empty = Auto (luminance at generate)
+    text_backdrop: true, // soft white plate under overlay text
   }
+}
+
+/** Overlay text color for rate banners. Empty = Auto (charcoal on light / white on dark). "outline" = manual white + black stroke only. */
+export const RATE_TEXT_COLOR_PRESETS = [
+  { id: 'auto', label: 'Auto', value: '' },
+  { id: 'white', label: 'White', value: '#ffffff' },
+  // Matches Beauty placeholder / light-card text (solid near-black, no outline).
+  { id: 'charcoal', label: 'Charcoal', value: '#1a1a1a' },
+  { id: 'outline', label: 'White + black outline', value: 'outline' },
+]
+
+/** Default hex when entering Custom — not White/Charcoal; avoid coral/brand purple. */
+export const RATE_TEXT_COLOR_CUSTOM_DEFAULT = '#1a4a7a'
+
+export function normalizeRateTextColor(v) {
+  const s = String(v || '')
+    .trim()
+    .toLowerCase()
+  if (!s || s === 'auto') return ''
+  if (s === 'outline' || s === 'white_stroke') return 'outline'
+  // Drop legacy coral-ish brand defaults if anyone stored them as "preset-like" customs.
+  if (s === 'coral' || s === '#c07359' || s === 'c07359') return '#1a4a7a'
+  const hex = s.startsWith('#') ? s : `#${s}`
+  if (/^#[0-9a-f]{3}$/i.test(hex)) {
+    const full = `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
+    // Legacy charcoal (#2f2f2f) → Beauty charcoal
+    if (full === '#2f2f2f') return '#1a1a1a'
+    return full
+  }
+  if (/^#[0-9a-f]{6}$/i.test(hex)) {
+    if (hex === '#2f2f2f') return '#1a1a1a'
+    return hex
+  }
+  return ''
+}
+
+/** Select value for RateBannerTextColorField (keeps Custom open while typing hex). */
+export function rateTextColorSelectValue(value) {
+  const raw = String(value ?? '').trim()
+  const normalized = normalizeRateTextColor(value)
+  if (normalized === 'outline') return 'outline'
+  if (!normalized) {
+    if (raw.startsWith('#') || /^[0-9a-f]{1,6}$/i.test(raw)) return 'custom'
+    return 'auto'
+  }
+  const preset = RATE_TEXT_COLOR_PRESETS.find((p) => p.value === normalized)
+  if (preset && preset.id !== 'auto') return preset.id
+  if (normalized.startsWith('#')) return 'custom'
+  return 'auto'
+}
+
+/** Hex to store when user picks Custom… (avoid snapping back to Charcoal/White). */
+export function rateTextColorEnterCustom(currentValue) {
+  const n = normalizeRateTextColor(currentValue)
+  const isPresetHex = RATE_TEXT_COLOR_PRESETS.some((p) => p.value && p.value === n)
+  if (n && n.startsWith('#') && !isPresetHex) return n
+  return RATE_TEXT_COLOR_CUSTOM_DEFAULT
+}
+
+export function rateTextColorPickerHex(value) {
+  const n = normalizeRateTextColor(value)
+  if (n && n.startsWith('#')) return n
+  return RATE_TEXT_COLOR_CUSTOM_DEFAULT
 }
 
 export const ALLOWED_BLOCKS_BY_THEME = {

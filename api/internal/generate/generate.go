@@ -41,6 +41,8 @@ type Generator struct {
 	formsByKey  map[string]cms.Template
 	// imgDims caches DecodeConfig results for one generate run (renderBlocks + buildFormatData).
 	imgDims map[string]imgDim
+	// imgLum caches bottom-region luminance for rate banner overlay auto color.
+	imgLum map[string]lumSample
 }
 
 type imgDim struct {
@@ -803,7 +805,7 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			mid, _ := data["media_id"].(string)
 			url, _ := data["url"].(string)
 			src, _ := resolve(mid, url)
-			html = renderRateBanner(data, src)
+			html = g.renderRateBanner(data, src, g.rateBannerAnalyzePath(mid, url))
 
 		default:
 			html = fmt.Sprintf(`<!-- unknown block type %s -->`, template.HTMLEscapeString(b.Type))
