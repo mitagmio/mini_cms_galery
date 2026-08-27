@@ -86,7 +86,7 @@ Public ──► www.sheyanova.art (HTML/CSS/JS/images only; no /api)
 ### `nav`
 - `id`, `parent_id`, `label`, `href`, `page_id`, `sort_order`, `kind` (`link` \| `category`), `visible`
 - Tree: top-level `link` (simple item) or `category` (one-level dropdown; children are `link`s). Category `href` may be empty. Link with `page_id` and empty `href` is filled from the page slug.
-- PUT `/api/admin/nav` replaces the full tree, then immediately regenerates the **preview** draft (`GenerateSite`, `PathPrefix=/preview`). Does not publish to GitHub.
+- PUT `/api/admin/nav` replaces the full tree. Does **not** regenerate preview by default (optional `?generate=1` or `{"generate":true}`). Refresh draft via Generate draft / Preview. Does not publish to GitHub.
 - Seed: BEAUTY → editorial children; top-level BEFORE\|AFTER, FASHION, EDITORIAL, PRODUCT, ABOUT, CONTACT + socials
 
 ### `publish_history`

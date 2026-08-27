@@ -171,6 +171,12 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	if err := s.ensureColumn("templates", "source", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return fmt.Errorf("migrate templates.source: %w", err)
 	}
+	if err := s.ensureColumn("media", "thumb_filename", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate media.thumb_filename: %w", err)
+	}
+	if err := s.ensureColumn("media", "thumb_url", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate media.thumb_url: %w", err)
+	}
 	return nil
 }
 

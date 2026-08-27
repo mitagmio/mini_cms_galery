@@ -214,6 +214,12 @@ export function mediaUrl(item) {
   return item.url || item.url_path || item.path || ''
 }
 
+/** Admin UI preview: compressed thumb when present, else full original. */
+export function mediaThumbUrl(item) {
+  if (!item) return ''
+  return item.thumb_url || mediaUrl(item)
+}
+
 export function allowedBlocksForTheme(theme) {
   if (ALLOWED_BLOCKS_BY_THEME[theme]) return ALLOWED_BLOCKS_BY_THEME[theme]
   const t = String(theme || '').toLowerCase()

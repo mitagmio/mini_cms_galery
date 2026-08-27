@@ -47,6 +47,14 @@ func main() {
 	} else if n > 0 {
 		log.Printf("cms: removed %d orphan nav item(s)", n)
 	}
+	go func() {
+		created, skipped, failed, err := store.EnsureMediaThumbs()
+		if err != nil {
+			log.Printf("cms: media thumbs: %v", err)
+			return
+		}
+		log.Printf("cms: media thumbs created=%d skipped=%d failed=%d", created, skipped, failed)
+	}()
 
 	themeSrc := cfg.FrontThemeSrc
 	if themeSrc == "" {
@@ -132,9 +140,11 @@ func main() {
 	mux.Handle("/api/admin/pages/", guard.Middleware(http.HandlerFunc(cmsH.PageByID)))
 	mux.Handle("/api/admin/media", guard.Middleware(http.HandlerFunc(cmsH.Media)))
 	mux.Handle("/api/admin/media/", guard.Middleware(http.HandlerFunc(cmsH.MediaByID)))
+	mux.Handle("/api/admin/stats", guard.Middleware(http.HandlerFunc(cmsH.Stats)))
 	mux.Handle("/api/admin/generate", guard.Middleware(http.HandlerFunc(genSvc.HandleGenerate)))
 	mux.Handle("/api/admin/preview/", guard.Middleware(http.HandlerFunc(genSvc.HandlePreviewPage)))
 	mux.Handle("/api/admin/publish", guard.Middleware(http.HandlerFunc(genSvc.HandlePublish)))
+	mux.Handle("/api/admin/publish/jobs/", guard.Middleware(http.HandlerFunc(genSvc.HandlePublishJob)))
 	mux.Handle("/api/admin/publish/history", guard.Middleware(http.HandlerFunc(cmsH.PublishHistory)))
 	mux.Handle("/api/admin/seed", guard.Middleware(http.HandlerFunc(cmsH.Seed)))
 	mux.Handle("/api/admin/import-front", guard.Middleware(http.HandlerFunc(cmsH.ImportFront)))

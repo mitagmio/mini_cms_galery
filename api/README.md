@@ -36,7 +36,7 @@ curl -s -H "Authorization: Bearer $TOKEN" $BASE/api/admin/settings
 curl -s -H "Authorization: Bearer $TOKEN" $BASE/api/admin/pages
 curl -s -H "Authorization: Bearer $TOKEN" $BASE/api/admin/nav
 
-# replace full nav tree (dropdown + links). PUT regenerates /preview (not GitHub publish).
+# replace full nav tree (dropdown + links). PUT saves only; optional ?generate=1 for full draft regenerate.
 # Body may be {"nav":[...]} or a raw array. kind=link | category. Omitted href + page_id → slug path.
 curl -s -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -X PUT \
   -d '{"nav":[{"label":"BEAUTY","kind":"category","visible":true,"children":[{"label":"EDITORIAL I","kind":"link","page_id":"PAGE_ID","visible":true}]},{"label":"ABOUT","kind":"link","page_id":"ABOUT_ID","visible":true}]}' \

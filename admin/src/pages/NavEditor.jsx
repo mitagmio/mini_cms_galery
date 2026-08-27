@@ -337,7 +337,7 @@ export default function NavEditor() {
       const payload = items.map((item, i) => serializeItem(item, i))
       const data = await admin.nav.put({ nav: payload })
       setItems((data.nav || payload).map(normalizeItem))
-      toast.ok('Menu saved. Preview will refresh automatically.')
+      toast.ok('Menu saved. Use Preview → Generate to refresh the draft site.')
     } catch (err) {
       toast.error(err.message)
     } finally {

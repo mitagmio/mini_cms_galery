@@ -460,25 +460,62 @@ VALUES (?,?,?,?,?,?,?)`, b.ID, pageID, b.Type, i, string(b.Data), now, now); err
 }
 
 func (s *Store) ListMedia() ([]Media, error) {
-	return s.ListMediaFiltered("", "")
+	list, _, err := s.ListMediaFiltered("", "", nil, 0)
+	return list, err
 }
 
-func (s *Store) ListMediaFiltered(kind, q string) ([]Media, error) {
-	rows, err := s.db.Query(`
-SELECT id, filename, original_name, url, title, alt, kind, mime, size_bytes, created_at, updated_at
-FROM media ORDER BY created_at DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	out := make([]Media, 0)
+// ListMediaFiltered returns media matching kind/q/ids. If ids is non-empty, only those
+// records are considered (still subject to kind/q). limit > 0 truncates the result;
+// total is the count before limit.
+func (s *Store) ListMediaFiltered(kind, q string, ids []string, limit int) ([]Media, int, error) {
 	kind = strings.TrimSpace(kind)
 	q = strings.ToLower(strings.TrimSpace(q))
+
+	cleanIDs := make([]string, 0, len(ids))
+	seen := make(map[string]struct{}, len(ids))
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		cleanIDs = append(cleanIDs, id)
+	}
+
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if len(cleanIDs) > 0 {
+		placeholders := make([]string, len(cleanIDs))
+		args := make([]any, len(cleanIDs))
+		for i, id := range cleanIDs {
+			placeholders[i] = "?"
+			args[i] = id
+		}
+		query := `
+SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at
+FROM media WHERE id IN (` + strings.Join(placeholders, ",") + `) ORDER BY created_at DESC`
+		rows, err = s.db.Query(query, args...)
+	} else {
+		rows, err = s.db.Query(`
+SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at
+FROM media ORDER BY created_at DESC`)
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	out := make([]Media, 0)
 	for rows.Next() {
 		var m Media
-		if err := rows.Scan(&m.ID, &m.Filename, &m.OriginalName, &m.URL, &m.Title, &m.Alt,
-			&m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt); err != nil {
-			return nil, err
+		if err := rows.Scan(&m.ID, &m.Filename, &m.OriginalName, &m.URL, &m.ThumbFilename, &m.ThumbURL,
+			&m.Title, &m.Alt, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			return nil, 0, err
 		}
 		if kind != "" && m.Kind != kind {
 			continue
@@ -491,16 +528,23 @@ FROM media ORDER BY created_at DESC`)
 		}
 		out = append(out, m)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	total := len(out)
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, total, nil
 }
 
 func (s *Store) GetMedia(id string) (Media, error) {
 	var m Media
 	err := s.db.QueryRow(`
-SELECT id, filename, original_name, url, title, alt, kind, mime, size_bytes, created_at, updated_at
+SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at
 FROM media WHERE id = ?`, id).Scan(
-		&m.ID, &m.Filename, &m.OriginalName, &m.URL, &m.Title, &m.Alt,
-		&m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt,
+		&m.ID, &m.Filename, &m.OriginalName, &m.URL, &m.ThumbFilename, &m.ThumbURL,
+		&m.Title, &m.Alt, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Media{}, ErrNotFound
@@ -516,9 +560,10 @@ func (s *Store) CreateMedia(m Media) (Media, error) {
 	m.CreatedAt = now
 	m.UpdatedAt = now
 	_, err := s.db.Exec(`
-INSERT INTO media (id, filename, original_name, url, title, alt, kind, mime, size_bytes, created_at, updated_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-		m.ID, m.Filename, m.OriginalName, m.URL, m.Title, m.Alt, m.Kind, m.Mime, m.SizeBytes, m.CreatedAt, m.UpdatedAt)
+INSERT INTO media (id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		m.ID, m.Filename, m.OriginalName, m.URL, m.ThumbFilename, m.ThumbURL,
+		m.Title, m.Alt, m.Kind, m.Mime, m.SizeBytes, m.CreatedAt, m.UpdatedAt)
 	if err != nil {
 		return Media{}, err
 	}
@@ -783,6 +828,46 @@ func (s *Store) AddPublishHistory(h PublishHistory) (PublishHistory, error) {
 INSERT INTO publish_history (id, created_at, note, status, detail_json)
 VALUES (?,?,?,?,?)`, h.ID, h.CreatedAt, h.Note, h.Status, string(h.Detail))
 	return h, err
+}
+
+func (s *Store) GetPublishHistory(id string) (PublishHistory, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return PublishHistory{}, ErrNotFound
+	}
+	var h PublishHistory
+	var detail string
+	err := s.db.QueryRow(`
+SELECT id, created_at, note, status, detail_json
+FROM publish_history WHERE id=?`, id).Scan(&h.ID, &h.CreatedAt, &h.Note, &h.Status, &detail)
+	if errors.Is(err, sql.ErrNoRows) {
+		return PublishHistory{}, ErrNotFound
+	}
+	if err != nil {
+		return PublishHistory{}, err
+	}
+	h.Detail = json.RawMessage(detail)
+	return h, nil
+}
+
+func (s *Store) UpdatePublishHistory(id, status string, detail json.RawMessage) (PublishHistory, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return PublishHistory{}, ErrNotFound
+	}
+	if len(detail) == 0 {
+		detail = json.RawMessage(`{}`)
+	}
+	res, err := s.db.Exec(`
+UPDATE publish_history SET status=?, detail_json=? WHERE id=?`, status, string(detail), id)
+	if err != nil {
+		return PublishHistory{}, err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return PublishHistory{}, ErrNotFound
+	}
+	return s.GetPublishHistory(id)
 }
 
 func (s *Store) ListPublishHistory(limit int) ([]PublishHistory, error) {

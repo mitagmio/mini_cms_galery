@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"sheyanova.art/api/internal/httpx"
@@ -152,11 +153,12 @@ func (h *Handler) Nav(w http.ResponseWriter, r *http.Request) {
 			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		// Regenerating the draft site is the first side effect after a nav write
-		// so preview menus match the saved tree immediately (no GitHub publish).
+		// Full-site generate is optional (?generate=1 or {"generate":true}) so
+		// routine nav saves stay fast; use Generate draft / Preview for HTML.
+		wantGenerate := navWantsGenerate(r, raw)
 		generated := false
 		var generateErr string
-		if h.GeneratePreview != nil {
+		if wantGenerate && h.GeneratePreview != nil {
 			if err := h.GeneratePreview(); err != nil {
 				generateErr = err.Error()
 				log.Printf("cms: preview generate after nav update failed: %v", err)
@@ -185,6 +187,20 @@ func (h *Handler) previewURL() string {
 		u = "/preview"
 	}
 	return u + "/"
+}
+
+// navWantsGenerate is true for ?generate=1 or JSON body {"generate":true}.
+func navWantsGenerate(r *http.Request, raw []byte) bool {
+	if q := strings.TrimSpace(r.URL.Query().Get("generate")); q == "1" || strings.EqualFold(q, "true") {
+		return true
+	}
+	var flag struct {
+		Generate *bool `json:"generate"`
+	}
+	if err := json.Unmarshal(raw, &flag); err == nil && flag.Generate != nil {
+		return *flag.Generate
+	}
+	return false
 }
 
 func parseNavPayload(raw []byte) ([]NavItem, error) {
@@ -389,17 +405,55 @@ func (h *Handler) Media(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		kind := r.URL.Query().Get("kind")
 		q := r.URL.Query().Get("q")
-		list, err := h.Store.ListMediaFiltered(kind, q)
+		var ids []string
+		if raw := strings.TrimSpace(r.URL.Query().Get("ids")); raw != "" {
+			for _, part := range strings.Split(raw, ",") {
+				part = strings.TrimSpace(part)
+				if part != "" {
+					ids = append(ids, part)
+				}
+			}
+		}
+		limit := 0
+		if raw := strings.TrimSpace(r.URL.Query().Get("limit")); raw != "" {
+			n, err := strconv.Atoi(raw)
+			if err != nil || n < 0 {
+				httpx.WriteError(w, http.StatusBadRequest, "invalid limit")
+				return
+			}
+			limit = n
+		}
+		list, total, err := h.Store.ListMediaFiltered(kind, q, ids, limit)
 		if err != nil {
 			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "media": list})
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "media": list, "total": total})
 	case http.MethodPost:
 		h.uploadMedia(w, r)
 	default:
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func (h *Handler) Stats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	pages, err := h.Store.CountPages()
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	media, err := h.Store.CountMedia()
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "pages": pages, "media": media,
+	})
 }
 
 func (h *Handler) MediaByID(w http.ResponseWriter, r *http.Request) {
@@ -409,7 +463,33 @@ func (h *Handler) MediaByID(w http.ResponseWriter, r *http.Request) {
 		h.Media(w, r)
 		return
 	}
+	if id == "backfill-thumbs" {
+		if r.Method != http.MethodPost {
+			httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+			return
+		}
+		created, skipped, failed, err := h.Store.EnsureMediaThumbs()
+		if err != nil {
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{
+			"ok": true, "created": created, "skipped": skipped, "failed": failed,
+		})
+		return
+	}
 	switch r.Method {
+	case http.MethodGet:
+		m, err := h.Store.GetMedia(id)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				httpx.WriteError(w, http.StatusNotFound, "not found")
+				return
+			}
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "media": m})
 	case http.MethodPatch:
 		var body struct {
 			Title *string `json:"title"`
@@ -441,6 +521,7 @@ func (h *Handler) MediaByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		_ = os.Remove(filepath.Join(h.Store.UploadDir(), m.Filename))
+		removeMediaThumbFiles(h.Store.UploadDir(), m)
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true})
 	default:
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
@@ -496,6 +577,12 @@ func (h *Handler) uploadMedia(w http.ResponseWriter, r *http.Request) {
 		Kind:         r.FormValue("kind"),
 		Mime:         hdr.Header.Get("Content-Type"),
 		SizeBytes:    n,
+	}
+	if thumbFn, thumbURL, terr := GenerateMediaThumb(h.Store.UploadDir(), id, name); terr != nil {
+		log.Printf("cms: thumb upload id=%s: %v", id, terr)
+	} else {
+		m.ThumbFilename = thumbFn
+		m.ThumbURL = thumbURL
 	}
 	out, err := h.Store.CreateMedia(m)
 	if err != nil {
@@ -701,25 +788,13 @@ func (h *Handler) validateTemplateSource(theme, src, kind string) error {
 
 func (h *Handler) writeTemplateSaved(w http.ResponseWriter, status int, t Template) {
 	h.attachEngineSource(&t)
-	generated := false
-	var generateErr string
-	if h.GeneratePreview != nil {
-		if err := h.GeneratePreview(); err != nil {
-			generateErr = err.Error()
-			log.Printf("cms: preview generate after template save failed: %v", err)
-		} else {
-			generated = true
-		}
-	}
-	resp := map[string]any{
+	// Do not sync full-site GeneratePreview here — label/block tweaks must stay
+	// fast. Refresh draft via POST /api/admin/generate or /preview/:pageId.
+	httpx.WriteJSON(w, status, map[string]any{
 		"ok":        true,
 		"template":  t,
-		"generated": generated,
-	}
-	if generateErr != "" {
-		resp["generate_error"] = generateErr
-	}
-	httpx.WriteJSON(w, status, resp)
+		"generated": false,
+	})
 }
 
 func patchString(patch map[string]any, key string) (string, bool) {

@@ -39,12 +39,28 @@ export default function Preview() {
     return slug ? `/preview/${slug}/?t=${Date.now()}` : `/preview/?t=${Date.now()}`
   }
 
+  // On mount: show existing draft HTML if present — do not full-regenerate the site.
+  useEffect(() => {
+    if (!pages.length) return
+    const id = pageId || pages[0]?.id
+    if (id) setSrc(previewPathForPage(id, pages))
+    else setSrc(`/preview/?t=${Date.now()}`)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pages.length])
+
   async function generateAndShow(explicitPageId) {
     const id = explicitPageId != null ? explicitPageId : pageId
     setBusy(true)
     try {
-      await admin.generate({})
-      setSrc(previewPathForPage(id))
+      if (id) {
+        const res = await admin.preview(id)
+        const url = res.preview_url || res.url || previewPathForPage(id)
+        const bust = url.includes('?') ? `${url}&t=${Date.now()}` : `${url}?t=${Date.now()}`
+        setSrc(bust)
+      } else {
+        await admin.generate({})
+        setSrc(`/preview/?t=${Date.now()}`)
+      }
       toast.ok('Preview refreshed')
     } catch (e) {
       toast.error(e.message)
@@ -53,12 +69,6 @@ export default function Preview() {
       setBusy(false)
     }
   }
-
-  useEffect(() => {
-    if (!pages.length) return
-    generateAndShow(pageId || pages[0]?.id)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pages.length])
 
   useEffect(() => {
     setPreviewChrome(

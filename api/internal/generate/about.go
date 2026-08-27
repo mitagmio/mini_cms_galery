@@ -71,26 +71,12 @@ func (g *Generator) writeArticleCSS() error {
 	if len(articleCSS) == 0 {
 		return nil
 	}
-	seen := map[string]bool{}
-	paths := []string{filepath.Join(g.Cfg.OutDir, "assets", "theme", "about.css")}
-	if src := strings.TrimSpace(g.Cfg.ThemeSrc); src != "" {
-		paths = append(paths, filepath.Join(src, "assets", "theme", "about.css"))
+	// Draft OutDir is /data/preview; ThemeSrc is /front. Only write into OutDir so
+	// GeneratePage/GeneratePreview never mutate the live theme tree. Publish sets
+	// OutDir == ThemeSrc (/front), so about.css still lands in the published site.
+	p := filepath.Join(g.Cfg.OutDir, "assets", "theme", "about.css")
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		return err
 	}
-	for _, p := range paths {
-		abs, err := filepath.Abs(p)
-		if err != nil {
-			abs = p
-		}
-		if seen[abs] {
-			continue
-		}
-		seen[abs] = true
-		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-			return err
-		}
-		if err := os.WriteFile(p, articleCSS, 0o644); err != nil {
-			return err
-		}
-	}
-	return nil
+	return os.WriteFile(p, articleCSS, 0o644)
 }

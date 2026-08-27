@@ -45,7 +45,6 @@ export default function TemplateEditor({ tmpl, apiReady, onCancel, onSaved }) {
   const [saving, setSaving] = useState(false)
   const [formTemplates, setFormTemplates] = useState(FORM_TEMPLATES)
   const [picker, setPicker] = useState(null)
-  const [mediaIndex, setMediaIndex] = useState({})
 
   const selected = useMemo(
     () => blocks.find((b) => b.id === selectedId) || null,
@@ -97,15 +96,6 @@ export default function TemplateEditor({ tmpl, apiReady, onCancel, onSaved }) {
             }))
           )
         }
-      } catch {
-        /* optional */
-      }
-      try {
-        const mdata = await admin.media.list()
-        const list = mdata.media || mdata.items || []
-        const map = {}
-        for (const m of list) map[m.id] = m
-        if (!cancelled) setMediaIndex(map)
       } catch {
         /* optional */
       }
@@ -190,11 +180,7 @@ export default function TemplateEditor({ tmpl, apiReady, onCancel, onSaved }) {
     setSaving(true)
     try {
       const res = await admin.templates.patch(tmpl.id, body)
-      if (res.generate_error) {
-        toast.error(`Saved, but preview failed: ${res.generate_error}`)
-      } else {
-        toast.ok('Template saved')
-      }
+      toast.ok('Template saved')
       onSaved(res.template || res)
     } catch (err) {
       toast.error(err.message)
@@ -247,7 +233,7 @@ export default function TemplateEditor({ tmpl, apiReady, onCancel, onSaved }) {
 
       {isForm && (
         <p className="muted template-editor-lead">
-          Edit form steps as blocks. Labels and options save with the template; rates preview regenerates on Save.
+          Edit form steps as blocks. Labels and options save with the template. Refresh draft via Generate draft / Preview when needed.
           {tmpl.form_key ? (
             <>
               {' '}
@@ -315,7 +301,6 @@ export default function TemplateEditor({ tmpl, apiReady, onCancel, onSaved }) {
               ) : (
                 <PageBlockInspector
                   block={selected}
-                  mediaIndex={mediaIndex}
                   formTemplates={formTemplates}
                   usedFormKeys={new Set(blocks.filter((x) => x.type === 'rate_banner').map((x) => bannerFormKey(x.data)))}
                   onChange={(patch) => updateBlockData(selected.id, patch)}
@@ -384,7 +369,6 @@ export default function TemplateEditor({ tmpl, apiReady, onCancel, onSaved }) {
               updateBlockData(picker.blockId, { [picker.field]: item.id })
             }
             setPicker(null)
-            setMediaIndex((prev) => ({ ...prev, [item.id]: item }))
           }}
         />
       )}

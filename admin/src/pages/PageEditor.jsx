@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { admin, apiUrl } from '../api'
-import { BLOCK_PALETTE, RATE_FORM_KEYS, RATE_CAPTIONS, BANNER_ASPECTS, DEFAULT_BANNER_ASPECT, FORM_TEMPLATES, allowedBlocksForTheme, bannerFormKey, formKeyFromTemplateId, formTemplateId, formTemplateName, mediaUrl, newBlock, paletteForAllowed, rateBannerData, templateLabel, TEMPLATES } from '../blockTypes'
+import { BLOCK_PALETTE, RATE_FORM_KEYS, RATE_CAPTIONS, BANNER_ASPECTS, DEFAULT_BANNER_ASPECT, FORM_TEMPLATES, allowedBlocksForTheme, bannerFormKey, formKeyFromTemplateId, formTemplateId, formTemplateName, mediaThumbUrl, newBlock, paletteForAllowed, rateBannerData, templateLabel, TEMPLATES } from '../blockTypes'
 import MediaPicker from '../components/MediaPicker'
 import { useToast } from '../toast'
 
@@ -63,10 +63,19 @@ export default function PageEditor() {
     }
   }, [])
 
-  const loadMediaIndex = useCallback(async () => {
+  const loadMediaIndex = useCallback(async (blockList, pageObj) => {
+    const ids = collectReferencedMediaIds(blockList, pageObj)
     try {
-      const data = await admin.media.list()
-      const list = data.media || data.items || []
+      let list = []
+      if (ids.length) {
+        try {
+          const data = await admin.media.list({ ids })
+          list = data.media || data.items || []
+        } catch {
+          const data = await admin.media.list()
+          list = data.media || data.items || []
+        }
+      }
       const map = {}
       for (const m of list) map[m.id] = m
       setMediaIndex(map)
@@ -122,10 +131,10 @@ export default function PageEditor() {
             setMenu(initMenuState(tree, nextPage))
           }
         }
+        if (!cancelled) await loadMediaIndex(bl, nextPage)
       } catch (e) {
         toast.error(e.message)
       }
-      loadMediaIndex()
     })()
     return () => {
       cancelled = true
@@ -216,7 +225,7 @@ export default function PageEditor() {
     setNavTree(nextTree)
     setMenu(initMenuState(nextTree, currentPage))
     setNavDirty(false)
-    if (!quiet) toast.ok('Menu saved. Preview will refresh automatically.')
+    if (!quiet) toast.ok('Menu saved. Use Generate draft to refresh preview.')
     return true
   }
 
@@ -340,8 +349,22 @@ export default function PageEditor() {
   async function publishPage() {
     try {
       await save()
-      await admin.publish({ page_id: id })
-      toast.ok('Publish requested')
+      const res = await admin.publish({ note: `from editor page ${id}` })
+      const jobId = res.job_id || res.history?.id
+      toast.ok(res.message || 'Full-site publish queued')
+      if (!jobId) return
+      const final = await admin.waitPublishJob(jobId)
+      const st = String(final.status || '').toLowerCase()
+      if (st === 'ok' || st === 'stub') {
+        toast.ok(st === 'stub' ? 'Site publish finished (git stubbed)' : 'Site published')
+      } else {
+        const err =
+          final.history?.detail?.error ||
+          final.job?.detail?.error ||
+          final.error ||
+          'Publish failed'
+        toast.error(typeof err === 'string' ? err : 'Publish failed')
+      }
     } catch (e) {
       toast.error(e.message)
     }
@@ -382,8 +405,8 @@ export default function PageEditor() {
           <button type="button" className="secondary" onClick={previewPage}>
             Preview
           </button>
-          <button type="button" className="secondary" onClick={publishPage}>
-            Publish page
+          <button type="button" className="secondary" onClick={publishPage} title="Publishes the full site (all published pages), not only this page">
+            Publish site
           </button>
           <button type="button" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
@@ -664,6 +687,24 @@ function hydrateSeo(p) {
   }
 }
 
+function collectReferencedMediaIds(blocks, page) {
+  const ids = new Set()
+  const add = (v) => {
+    if (v == null || v === '') return
+    ids.add(String(v))
+  }
+  for (const b of blocks || []) {
+    const d = b?.data || {}
+    add(d.media_id)
+    add(d.before_media_id)
+    add(d.after_media_id)
+  }
+  add(page?.seo?.og_image_media_id)
+  add(page?.favicon_media_id)
+  add(page?.settings?.favicon_media_id)
+  return [...ids]
+}
+
 function normalizeBlocks(list) {
   return (list || []).map((b, i) => ({
     id: b.id || `local-${i}-${Date.now()}`,
@@ -677,9 +718,9 @@ function labelForType(type) {
 }
 
 function OgThumb({ media }) {
-  const src = media ? apiUrl(mediaUrl(media)) : ''
+  const src = media ? apiUrl(mediaThumbUrl(media)) : ''
   if (!src) return <span className="muted">none</span>
-  return <img className="mini-thumb" src={src} alt="" />
+  return <img className="mini-thumb" src={src} alt="" loading="lazy" />
 }
 
 function BlockPreview({ block, mediaIndex }) {
@@ -733,10 +774,10 @@ function BlockPreview({ block, mediaIndex }) {
 }
 
 function Thumb({ media, label }) {
-  const src = media ? apiUrl(mediaUrl(media)) : ''
+  const src = media ? apiUrl(mediaThumbUrl(media)) : ''
   return (
     <div className="thumb-slot">
-      {src ? <img src={src} alt={label} /> : <span>{label}</span>}
+      {src ? <img src={src} alt={label} loading="lazy" /> : <span>{label}</span>}
     </div>
   )
 }

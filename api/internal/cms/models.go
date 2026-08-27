@@ -226,17 +226,19 @@ func (b *Block) NormalizeAliases() {
 }
 
 type Media struct {
-	ID           string `json:"id"`
-	Filename     string `json:"filename"`
-	OriginalName string `json:"original_name,omitempty"`
-	URL          string `json:"url"`
-	Title        string `json:"title,omitempty"`
-	Alt          string `json:"alt,omitempty"`
-	Kind         string `json:"kind,omitempty"`
-	Mime         string `json:"mime,omitempty"`
-	SizeBytes    int64  `json:"size_bytes,omitempty"`
-	CreatedAt    string `json:"created_at"`
-	UpdatedAt    string `json:"updated_at,omitempty"`
+	ID            string `json:"id"`
+	Filename      string `json:"filename"`
+	OriginalName  string `json:"original_name,omitempty"`
+	URL           string `json:"url"`
+	ThumbFilename string `json:"thumb_filename,omitempty"`
+	ThumbURL      string `json:"thumb_url,omitempty"`
+	Title         string `json:"title,omitempty"`
+	Alt           string `json:"alt,omitempty"`
+	Kind          string `json:"kind,omitempty"`
+	Mime          string `json:"mime,omitempty"`
+	SizeBytes     int64  `json:"size_bytes,omitempty"`
+	CreatedAt     string `json:"created_at"`
+	UpdatedAt     string `json:"updated_at,omitempty"`
 }
 
 const (

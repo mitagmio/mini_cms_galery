@@ -21,6 +21,13 @@ type Service struct {
 	Gen      *Generator
 	FrontDir string // publish output (FRONT_DIR); draft generate stays on Gen.Cfg.OutDir
 	mu       sync.Mutex
+
+	// publishMu serializes publish jobs (one at a time). Generate lock (mu) is only
+	// held around filesystem GenerateSite — not across git push.
+	publishMu   sync.Mutex
+	activeJobID string
+	// pushFront defaults to PushFrontRepo; tests may stub to avoid real git.
+	pushFront func(frontDir, note string) (status string, detail map[string]any)
 }
 
 // GeneratePreview writes the draft site into OutDir with PathPrefix=/preview.
@@ -40,6 +47,38 @@ func (s *Service) HandleGenerate(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	var body struct {
+		PageID string `json:"page_id"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	pageID := strings.TrimSpace(body.PageID)
+
+	// Single-page draft when page_id is set (fast path for editor Generate draft).
+	if pageID != "" {
+		s.mu.Lock()
+		prevPrefix := s.Gen.Cfg.PathPrefix
+		s.Gen.Cfg.PathPrefix = strings.TrimRight(s.Gen.Cfg.PreviewBase, "/")
+		url, err := s.Gen.GeneratePage(pageID)
+		s.Gen.Cfg.PathPrefix = prevPrefix
+		s.mu.Unlock()
+		if err != nil {
+			if err == cms.ErrNotFound {
+				httpx.WriteError(w, http.StatusNotFound, "not found")
+				return
+			}
+			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		httpx.WriteJSON(w, http.StatusOK, map[string]any{
+			"ok":          true,
+			"outDir":      s.Gen.Cfg.OutDir,
+			"url":         url,
+			"preview_url": url,
+			"message":     "Draft page generated",
+		})
+		return
+	}
+
 	if err := s.GeneratePreview(); err != nil {
 		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -90,9 +129,139 @@ func (s *Service) HandlePublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		Note string `json:"note"`
+		Note   string `json:"note"`
+		PageID string `json:"page_id"` // ignored — publish always regenerates the full site
 	}
 	_ = json.NewDecoder(r.Body).Decode(&body)
+	_ = body.PageID
+
+	s.publishMu.Lock()
+	if s.activeJobID != "" {
+		jobID := s.activeJobID
+		s.publishMu.Unlock()
+		if h, err := s.Gen.Store.GetPublishHistory(jobID); err == nil && isActivePublishStatus(h.Status) {
+			httpx.WriteJSON(w, http.StatusAccepted, map[string]any{
+				"ok":      true,
+				"job_id":  h.ID,
+				"status":  h.Status,
+				"history": h,
+				"message": "publish already in progress",
+			})
+			return
+		}
+		s.publishMu.Lock()
+		if s.activeJobID == jobID {
+			s.activeJobID = ""
+		}
+	}
+
+	h, err := s.Gen.Store.AddPublishHistory(cms.PublishHistory{
+		Note:   body.Note,
+		Status: "queued",
+		Detail: cms.MustJSON(map[string]any{
+			"stage":   "queued",
+			"message": "full site publish queued",
+		}),
+	})
+	if err != nil {
+		s.publishMu.Unlock()
+		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.activeJobID = h.ID
+	s.publishMu.Unlock()
+
+	go s.runPublishJob(h.ID, body.Note)
+
+	httpx.WriteJSON(w, http.StatusAccepted, map[string]any{
+		"ok":      true,
+		"job_id":  h.ID,
+		"status":  "queued",
+		"history": h,
+		"message": "Publish queued (full site)",
+	})
+}
+
+func (s *Service) HandlePublishJob(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/admin/publish/jobs/")
+	id = strings.Trim(id, "/")
+	if id == "" {
+		httpx.WriteError(w, http.StatusBadRequest, "job id required")
+		return
+	}
+	h, err := s.Gen.Store.GetPublishHistory(id)
+	if err != nil {
+		if err == cms.ErrNotFound {
+			httpx.WriteError(w, http.StatusNotFound, "not found")
+			return
+		}
+		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	stage := publishStage(h.Detail)
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"job_id":  h.ID,
+		"status":  h.Status,
+		"stage":   stage,
+		"history": h,
+		"job":     h,
+	})
+}
+
+func isActivePublishStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "queued", "running":
+		return true
+	default:
+		return false
+	}
+}
+
+func publishStage(detail json.RawMessage) string {
+	if len(detail) == 0 {
+		return ""
+	}
+	var m map[string]any
+	if err := json.Unmarshal(detail, &m); err != nil {
+		return ""
+	}
+	if s, ok := m["stage"].(string); ok {
+		return s
+	}
+	return ""
+}
+
+func (s *Service) updatePublishJob(id, status string, detail map[string]any) {
+	if _, err := s.Gen.Store.UpdatePublishHistory(id, status, cms.MustJSON(detail)); err != nil {
+		log.Printf("publish: update job %s status=%s: %v", id, status, err)
+	}
+}
+
+func (s *Service) runPublishJob(jobID, note string) {
+	defer func() {
+		if rec := recover(); rec != nil {
+			log.Printf("publish: job %s panic: %v", jobID, rec)
+			s.updatePublishJob(jobID, "error", map[string]any{
+				"stage":   "error",
+				"message": "publish panicked",
+			})
+		}
+		s.publishMu.Lock()
+		if s.activeJobID == jobID {
+			s.activeJobID = ""
+		}
+		s.publishMu.Unlock()
+	}()
+
+	s.updatePublishJob(jobID, "running", map[string]any{
+		"stage":   "generate",
+		"message": "generating published site",
+	})
 
 	s.mu.Lock()
 	prevOut := s.Gen.Cfg.OutDir
@@ -107,34 +276,44 @@ func (s *Service) HandlePublish(w http.ResponseWriter, r *http.Request) {
 	s.Gen.Cfg.PathPrefix = prevPrefix
 	s.Gen.Cfg.PublishedOnly = false
 	s.mu.Unlock()
-	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
-	}
 
 	publishDir := s.FrontDir
 	if publishDir == "" {
 		publishDir = prevOut
 	}
-	pushStatus, pushDetail := PushFrontRepo(publishDir, body.Note)
-	detail := cms.MustJSON(map[string]any{
-		"outDir": publishDir,
-		"git":    pushDetail,
-	})
-	h, err := s.Gen.Store.AddPublishHistory(cms.PublishHistory{
-		Note:   body.Note,
-		Status: pushStatus,
-		Detail: detail,
-	})
 	if err != nil {
-		httpx.WriteError(w, http.StatusInternalServerError, err.Error())
+		s.updatePublishJob(jobID, "error", map[string]any{
+			"stage":   "generate",
+			"outDir":  publishDir,
+			"error":   err.Error(),
+			"message": "generate failed",
+		})
 		return
 	}
-	httpx.WriteJSON(w, http.StatusOK, map[string]any{
-		"ok":      true,
-		"history": h,
-		"git":     pushDetail,
+
+	s.updatePublishJob(jobID, "running", map[string]any{
+		"stage":   "push",
+		"outDir":  publishDir,
+		"message": "pushing to github",
 	})
+
+	pushFn := s.pushFront
+	if pushFn == nil {
+		pushFn = PushFrontRepo
+	}
+	pushStatus, pushDetail := pushFn(publishDir, note)
+	detail := map[string]any{
+		"stage":  "done",
+		"outDir": publishDir,
+		"git":    pushDetail,
+	}
+	if msg, ok := pushDetail["message"].(string); ok && msg != "" {
+		detail["message"] = msg
+	}
+	if errMsg, ok := pushDetail["error"].(string); ok && errMsg != "" {
+		detail["error"] = errMsg
+	}
+	s.updatePublishJob(jobID, pushStatus, detail)
 }
 
 // PushFrontRepo commits the already-generated FRONT_DIR tree in place and pushes

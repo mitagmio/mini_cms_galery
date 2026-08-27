@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { admin, apiUrl } from '../api'
-import { mediaUrl } from '../blockTypes'
+import { mediaThumbUrl } from '../blockTypes'
 import MediaPicker from '../components/MediaPicker'
 import { useToast } from '../toast'
 
@@ -33,24 +33,38 @@ export default function Settings() {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      let nextSettings = null
       try {
         const s = await admin.settings.get()
         if (!cancelled) {
           const raw = s.settings || s
-          setSettings({
+          nextSettings = {
             ...EMPTY,
             ...raw,
             contact_email: raw.contact_email || raw.mailto_address || '',
             social: { ...EMPTY.social, ...(raw.social || {}) },
-          })
+          }
+          setSettings(nextSettings)
         }
       } catch (e) {
         toast.error(e.message)
       }
+      if (cancelled || !nextSettings) return
+      const ids = [nextSettings.favicon_media_id, nextSettings.og_image_media_id].filter(Boolean)
+      if (!ids.length) return
       try {
-        const m = await admin.media.list()
+        let list = []
+        try {
+          const m = await admin.media.list({ ids })
+          list = m.media || m.items || []
+        } catch {
+          const fetched = await Promise.all(
+            ids.map((id) => admin.media.get(id).catch(() => null))
+          )
+          list = fetched.map((r) => r?.media || r).filter(Boolean)
+        }
         const map = {}
-        for (const item of m.media || m.items || []) map[item.id] = item
+        for (const item of list) map[item.id] = item
         if (!cancelled) setMediaMap(map)
       } catch {
         /* ignore */
@@ -133,7 +147,7 @@ export default function Settings() {
         <div className="field-row">
           <span>Favicon</span>
           {fav ? (
-            <img className="mini-thumb" src={apiUrl(mediaUrl(fav))} alt="favicon" />
+            <img className="mini-thumb" src={apiUrl(mediaThumbUrl(fav))} alt="favicon" loading="lazy" />
           ) : (
             <span className="muted">none</span>
           )}
@@ -148,7 +162,7 @@ export default function Settings() {
         <div className="field-row">
           <span>Default OG image</span>
           {og ? (
-            <img className="mini-thumb" src={apiUrl(mediaUrl(og))} alt="og" />
+            <img className="mini-thumb" src={apiUrl(mediaThumbUrl(og))} alt="og" loading="lazy" />
           ) : (
             <span className="muted">none</span>
           )}

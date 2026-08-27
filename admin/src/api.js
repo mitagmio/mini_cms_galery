@@ -104,14 +104,21 @@ export const admin = {
     patch: (id, body) => api(`/api/admin/templates/${id}`, { method: 'PATCH', body }),
     put: (id, body) => api(`/api/admin/templates/${id}`, { method: 'PUT', body }),
   },
+  stats: () => api('/api/admin/stats'),
   media: {
     list: (params = {}) => {
       const q = new URLSearchParams()
       if (params.kind) q.set('kind', params.kind)
       if (params.q) q.set('q', params.q)
+      if (params.ids != null && params.ids !== '') {
+        const ids = Array.isArray(params.ids) ? params.ids.filter(Boolean).join(',') : String(params.ids)
+        if (ids) q.set('ids', ids)
+      }
+      if (params.limit != null && params.limit !== '') q.set('limit', String(params.limit))
       const s = q.toString()
       return api(`/api/admin/media${s ? `?${s}` : ''}`)
     },
+    get: (id) => api(`/api/admin/media/${id}`),
     upload: (formData) =>
       api('/api/admin/media', { method: 'POST', body: formData, formData: true }),
     patch: (id, body) => api(`/api/admin/media/${id}`, { method: 'PATCH', body }),
@@ -120,7 +127,21 @@ export const admin = {
   generate: (body = {}) => api('/api/admin/generate', { method: 'POST', body }),
   preview: (pageId) => api(`/api/admin/preview/${pageId}`, { method: 'POST' }),
   publish: (body = {}) => api('/api/admin/publish', { method: 'POST', body }),
+  publishJob: (id) => api(`/api/admin/publish/jobs/${id}`),
   publishHistory: () => api('/api/admin/publish/history'),
+  /** Poll publish job until terminal status (ok|error|stub). */
+  async waitPublishJob(jobId, { intervalMs = 1000, timeoutMs = 10 * 60 * 1000, onUpdate } = {}) {
+    const started = Date.now()
+    let last = null
+    while (Date.now() - started < timeoutMs) {
+      last = await admin.publishJob(jobId)
+      if (typeof onUpdate === 'function') onUpdate(last)
+      const st = String(last.status || '').toLowerCase()
+      if (st && st !== 'queued' && st !== 'running') return last
+      await new Promise((r) => setTimeout(r, intervalMs))
+    }
+    throw new ApiError('Publish timed out while waiting for job', { status: 408, body: last })
+  },
   /** Import blocks/media from static front/. Pass force to replace existing blocks. */
   importFront: (force = false) =>
     api(`/api/admin/import-front${force ? '?force=1' : ''}`, { method: 'POST' }),

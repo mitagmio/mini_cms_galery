@@ -6,11 +6,27 @@ import { useToast } from '../toast'
 export default function Dashboard() {
   const toast = useToast()
   const [pages, setPages] = useState([])
-  const [media, setMedia] = useState([])
+  const [mediaCount, setMediaCount] = useState(0)
   const [history, setHistory] = useState([])
   const [settings, setSettings] = useState(null)
   const [forceImport, setForceImport] = useState(false)
   const [importing, setImporting] = useState(false)
+
+  async function fetchMediaCount() {
+    try {
+      const s = await admin.stats()
+      if (typeof s.media === 'number') return s.media
+    } catch {
+      /* fall through */
+    }
+    try {
+      const m = await admin.media.list({ limit: 1 })
+      if (typeof m.total === 'number') return m.total
+      return (m.media || m.items || []).length
+    } catch {
+      return 0
+    }
+  }
 
   async function load() {
     const tasks = [
@@ -18,13 +34,13 @@ export default function Dashboard() {
         toast.error(e.message)
         return null
       }),
-      admin.media.list().catch(() => null),
+      fetchMediaCount(),
       admin.publishHistory().catch(() => null),
       admin.settings.get().catch(() => null),
     ]
-    const [p, m, h, s] = await Promise.all(tasks)
+    const [p, mediaN, h, s] = await Promise.all(tasks)
     setPages(p?.pages || p?.items || [])
-    setMedia(m?.media || m?.items || [])
+    setMediaCount(mediaN || 0)
     setHistory(h?.history || h?.items || [])
     setSettings(s?.settings || s || null)
   }
@@ -37,14 +53,14 @@ export default function Dashboard() {
           if (!cancelled) toast.error(e.message)
           return null
         }),
-        admin.media.list().catch(() => null),
+        fetchMediaCount(),
         admin.publishHistory().catch(() => null),
         admin.settings.get().catch(() => null),
       ]
-      const [p, m, h, s] = await Promise.all(tasks)
+      const [p, mediaN, h, s] = await Promise.all(tasks)
       if (cancelled) return
       setPages(p?.pages || p?.items || [])
-      setMedia(m?.media || m?.items || [])
+      setMediaCount(mediaN || 0)
       setHistory(h?.history || h?.items || [])
       setSettings(s?.settings || s || null)
     })()
@@ -102,7 +118,7 @@ export default function Dashboard() {
         </div>
         <div className="stat">
           <span className="stat-label">Media</span>
-          <strong>{media.length}</strong>
+          <strong>{mediaCount}</strong>
         </div>
         <div className="stat">
           <span className="stat-label">Homepage</span>

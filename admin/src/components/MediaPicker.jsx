@@ -1,7 +1,18 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiUrl, admin } from '../api'
-import { mediaUrl } from '../blockTypes'
+import { mediaThumbUrl } from '../blockTypes'
 import { useToast } from '../toast'
+
+/** Session cache: reuse last list until kind/q change or invalidateMediaListCache(). */
+let listCache = { key: null, items: null }
+
+function cacheKey(kind, q) {
+  return `${kind || ''}\0${q || ''}`
+}
+
+export function invalidateMediaListCache() {
+  listCache = { key: null, items: null }
+}
 
 export default function MediaPicker({
   open,
@@ -16,6 +27,7 @@ export default function MediaPicker({
   const [loading, setLoading] = useState(false)
   const [kind, setKind] = useState(kindFilter || '')
   const [q, setQ] = useState('')
+  const [debouncedQ, setDebouncedQ] = useState('')
   const [selected, setSelected] = useState([])
 
   useEffect(() => {
@@ -25,13 +37,31 @@ export default function MediaPicker({
   }, [open, kindFilter])
 
   useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300)
+    return () => clearTimeout(t)
+  }, [q])
+
+  useEffect(() => {
     if (!open) return
     let cancelled = false
+    const key = cacheKey(kind, debouncedQ)
+    if (listCache.key === key && Array.isArray(listCache.items)) {
+      setItems(listCache.items)
+      setLoading(false)
+      return
+    }
     ;(async () => {
       setLoading(true)
       try {
-        const data = await admin.media.list({ kind: kind || undefined, q: q || undefined })
-        if (!cancelled) setItems(data.media || data.items || [])
+        const data = await admin.media.list({
+          kind: kind || undefined,
+          q: debouncedQ || undefined,
+        })
+        const next = data.media || data.items || []
+        if (!cancelled) {
+          listCache = { key, items: next }
+          setItems(next)
+        }
       } catch (e) {
         if (!cancelled) {
           setItems([])
@@ -44,7 +74,7 @@ export default function MediaPicker({
     return () => {
       cancelled = true
     }
-  }, [open, kind, q, toast])
+  }, [open, kind, debouncedQ, toast])
 
   const filtered = useMemo(() => items, [items])
 
@@ -94,7 +124,7 @@ export default function MediaPicker({
         {loading && <p className="muted">Loading…</p>}
         <div className="grid picker-grid">
           {filtered.map((m) => {
-            const src = apiUrl(mediaUrl(m))
+            const src = apiUrl(mediaThumbUrl(m))
             const on = selected.includes(m.id)
             return (
               <button
@@ -103,7 +133,11 @@ export default function MediaPicker({
                 className={`card pick-card ${on ? 'selected' : ''}`}
                 onClick={() => toggle(m.id)}
               >
-                {src ? <img src={src} alt={m.title || m.id} /> : <div className="thumb-empty">No preview</div>}
+                {src ? (
+                  <img src={src} alt={m.title || m.id} loading="lazy" />
+                ) : (
+                  <div className="thumb-empty">No preview</div>
+                )}
                 <div className="meta">
                   {m.kind || '—'} · {m.title || m.id}
                 </div>

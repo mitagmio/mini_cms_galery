@@ -39,6 +39,13 @@ type Generator struct {
 	pagesBySlug map[string]cms.Page
 	srcByTheme  map[string]string
 	formsByKey  map[string]cms.Template
+	// imgDims caches DecodeConfig results for one generate run (renderBlocks + buildFormatData).
+	imgDims map[string]imgDim
+}
+
+type imgDim struct {
+	w, h int
+	ok   bool
 }
 
 type renderedBlock struct {
@@ -68,6 +75,7 @@ func New(store *cms.Store, cfg Config) (*Generator, error) {
 
 // GenerateSite writes the full static site into OutDir.
 func (g *Generator) GenerateSite() error {
+	g.imgDims = nil
 	if err := os.MkdirAll(g.Cfg.OutDir, 0o755); err != nil {
 		return err
 	}
@@ -138,6 +146,7 @@ func (g *Generator) pruneObsoletePageDirs(pages []cms.Page) error {
 
 // GeneratePage writes a single page and returns its public preview URL path.
 func (g *Generator) GeneratePage(pageID string) (string, error) {
+	g.imgDims = nil
 	if err := os.MkdirAll(g.Cfg.OutDir, 0o755); err != nil {
 		return "", err
 	}
@@ -252,7 +261,7 @@ func (g *Generator) buildFormatData(p cms.Page) template.JS {
 			url, _ := data["url"].(string)
 			path := g.mediaFilePath(mid, url)
 			if path != "" {
-				if dw, dh, ok := probeImageSize(path); ok {
+				if dw, dh, ok := g.cachedImageSize(path); ok {
 					w, h = dw, dh
 				}
 			}
@@ -331,12 +340,28 @@ func probeImageSize(path string) (int, int, bool) {
 	return cfg.Width, cfg.Height, true
 }
 
+func (g *Generator) cachedImageSize(path string) (int, int, bool) {
+	if path == "" {
+		return 0, 0, false
+	}
+	if g.imgDims != nil {
+		if d, ok := g.imgDims[path]; ok {
+			return d.w, d.h, d.ok
+		}
+	} else {
+		g.imgDims = make(map[string]imgDim)
+	}
+	w, h, ok := probeImageSize(path)
+	g.imgDims[path] = imgDim{w: w, h: h, ok: ok}
+	return w, h, ok
+}
+
 func (g *Generator) probeMediaSize(id, url string) (int, int) {
 	path := g.mediaFilePath(id, url)
 	if path == "" {
 		return 0, 0
 	}
-	w, h, ok := probeImageSize(path)
+	w, h, ok := g.cachedImageSize(path)
 	if !ok {
 		return 0, 0
 	}
@@ -863,18 +888,43 @@ func (g *Generator) copyThemeAssets() error {
 	if srcAbs == outAbs {
 		return nil
 	}
-	dirs := []string{"assets", "static", "fonts"}
+	// Theme kit only (~2MB): assets/theme + other non-cdn asset dirs, static, fonts.
+	// Never bulk-copy assets/cdn (~190MB); page images come from copyMedia.
+	dirs := themeKitDirs(src)
 	for _, d := range dirs {
 		from := filepath.Join(src, d)
 		to := filepath.Join(g.Cfg.OutDir, d)
 		if _, err := os.Stat(from); err != nil {
 			continue
 		}
-		if err := copyDir(from, to); err != nil {
+		if err := copyDirSkipUnchanged(from, to); err != nil {
 			return fmt.Errorf("copy %s: %w", d, err)
 		}
 	}
 	return nil
+}
+
+// themeKitDirs lists relative dirs to copy for draft generate (excludes assets/cdn).
+func themeKitDirs(themeSrc string) []string {
+	dirs := []string{filepath.Join("assets", "theme"), "static", "fonts"}
+	assetsRoot := filepath.Join(themeSrc, "assets")
+	entries, err := os.ReadDir(assetsRoot)
+	if err != nil {
+		return dirs
+	}
+	seen := map[string]bool{"theme": true}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		if name == "cdn" || seen[name] {
+			continue
+		}
+		seen[name] = true
+		dirs = append(dirs, filepath.Join("assets", name))
+	}
+	return dirs
 }
 
 func copyDir(src, dst string) error {
@@ -891,6 +941,23 @@ func copyDir(src, dst string) error {
 			return os.MkdirAll(target, 0o755)
 		}
 		return copyFile(path, target)
+	})
+}
+
+func copyDirSkipUnchanged(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		return copyFileSkipUnchanged(path, target)
 	})
 }
 
@@ -915,4 +982,27 @@ func copyFile(src, dst string) error {
 	defer out.Close()
 	_, err = io.Copy(out, in)
 	return err
+}
+
+// copyFileSkipUnchanged copies src→dst unless dst already matches size+mtime.
+// Preserves source mtime on the destination so subsequent GeneratePage stays cheap.
+func copyFileSkipUnchanged(src, dst string) error {
+	absSrc, err1 := filepath.Abs(src)
+	absDst, err2 := filepath.Abs(dst)
+	if err1 == nil && err2 == nil && absSrc == absDst {
+		return nil
+	}
+	si, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if di, err := os.Stat(dst); err == nil && !di.IsDir() {
+		if di.Size() == si.Size() && di.ModTime().Equal(si.ModTime()) {
+			return nil
+		}
+	}
+	if err := copyFile(src, dst); err != nil {
+		return err
+	}
+	return os.Chtimes(dst, si.ModTime(), si.ModTime())
 }
