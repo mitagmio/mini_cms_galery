@@ -48,12 +48,13 @@ func main() {
 		log.Printf("cms: removed %d orphan nav item(s)", n)
 	}
 	go func() {
-		created, skipped, failed, err := store.EnsureMediaThumbs()
+		st, err := store.EnsureMediaVariants()
 		if err != nil {
-			log.Printf("cms: media thumbs: %v", err)
+			log.Printf("cms: media variants: %v", err)
 			return
 		}
-		log.Printf("cms: media thumbs created=%d skipped=%d failed=%d", created, skipped, failed)
+		log.Printf("cms: media variants thumb_created=%d banner_created=%d display_created=%d skipped=%d failed=%d",
+			st.ThumbCreated, st.BannerCreated, st.DisplayCreated, st.Skipped, st.Failed)
 	}()
 
 	themeSrc := cfg.FrontThemeSrc

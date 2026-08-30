@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
@@ -255,5 +256,87 @@ func TestGenerateRatesTurnstileExplicitWidget(t *testing.T) {
 	}
 	if strings.Contains(html, `class="cf-turnstile"`) {
 		t.Fatal("hidden rate modals must not use implicit cf-turnstile (empty token on submit)")
+	}
+}
+
+func TestGenerateRateBannerUsesCompressedDisplay(t *testing.T) {
+	s := testStore(t)
+	if _, err := s.PutSettings(cms.SiteSettings{SiteName: "Test", CanonicalBase: "https://www.sheyanova.art"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.EnsureSystemTemplates(); err != nil {
+		t.Fatal(err)
+	}
+	up := filepath.Join(t.TempDir(), "up")
+	if err := os.MkdirAll(up, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	id := "rateimg01deadbeef"
+	orig := id + ".png"
+	origPath := filepath.Join(up, orig)
+	writeSolidPNG(t, origPath, color.NRGBA{R: 200, G: 180, B: 160, A: 255}, 2400, 3200)
+	st, err := os.Stat(origPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateMedia(cms.Media{
+		ID: id, Filename: orig, URL: "/media/" + orig, SizeBytes: st.Size(), Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.CreatePage(cms.Page{
+		Slug: "rates-banner-opt", Title: "RATES", Theme: cms.ThemeRatesContent, Status: "draft",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocks := make([]cms.Block, 0, 4)
+	for i, key := range []string{"fashion", "beauty", "lookbook", "editorial"} {
+		data := map[string]any{"form_template_id": cms.FormTemplateID(key), "caption": strings.ToUpper(key)}
+		if i == 0 {
+			data["media_id"] = id
+			data["url"] = "/media/" + orig
+		}
+		blocks = append(blocks, cms.Block{Type: cms.BlockRateBanner, Data: cms.MustJSON(data)})
+	}
+	if _, err := s.ReplaceBlocks(p.ID, blocks); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	g, err := New(s, Config{OutDir: out, UploadDir: up, PreviewBase: "/preview", PathPrefix: "/preview"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.writePage(mustGet(t, s, p.ID)); err != nil {
+		t.Fatal(err)
+	}
+	htmlb, err := os.ReadFile(filepath.Join(out, "rates-banner-opt", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(htmlb)
+	wantSrc := `/assets/cdn/` + id + `_banner.webp`
+	if !strings.Contains(html, wantSrc) {
+		t.Fatalf("banner img must use compressed webp %q; html=%s", wantSrc, html)
+	}
+	if strings.Contains(html, `/assets/cdn/`+orig) {
+		t.Fatal("must not serve full original on rate banner tile")
+	}
+	if !strings.Contains(html, `loading="eager"`) {
+		t.Fatal("first-row banners should be eager")
+	}
+	cdnBanner := filepath.Join(out, "assets", "cdn", id+"_banner.webp")
+	bst, err := os.Stat(cdnBanner)
+	if err != nil {
+		t.Fatalf("expected copied banner webp: %v", err)
+	}
+	if bst.Size() >= st.Size() {
+		t.Fatalf("banner copy should be smaller than original: banner=%d orig=%d", bst.Size(), st.Size())
+	}
+	if _, err := os.Stat(filepath.Join(out, "assets", "cdn", orig)); !os.IsNotExist(err) {
+		t.Fatal("full original must not be copied into assets/cdn for rates-only use")
+	}
+	if _, err := os.Stat(origPath); err != nil {
+		t.Fatal("original must remain in uploads")
 	}
 }

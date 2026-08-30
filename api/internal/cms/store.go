@@ -206,8 +206,14 @@ func (s *Store) CreatePage(p Page) (Page, error) {
 	p.CreatedAt = now
 	p.UpdatedAt = now
 	home := 0
+	var demoted []string
 	if p.IsHomepage {
 		home = 1
+		var herr error
+		demoted, herr = s.homepageIDsExcept("")
+		if herr != nil {
+			return Page{}, herr
+		}
 		if _, err := s.db.Exec(`UPDATE pages SET is_homepage = 0`); err != nil {
 			return Page{}, err
 		}
@@ -224,6 +230,9 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		return Page{}, err
 	}
 	out.NormalizeAliases()
+	if err := s.syncNavForDemotedHomepages(demoted); err != nil {
+		return Page{}, err
+	}
 	return out, nil
 }
 
@@ -271,8 +280,14 @@ func (s *Store) PatchPage(id string, patch map[string]any) (Page, error) {
 	}
 	cur.UpdatedAt = Now()
 	home := 0
+	var demoted []string
 	if cur.IsHomepage {
 		home = 1
+		var herr error
+		demoted, herr = s.homepageIDsExcept(id)
+		if herr != nil {
+			return Page{}, herr
+		}
 		if _, err := s.db.Exec(`UPDATE pages SET is_homepage = 0 WHERE id != ?`, id); err != nil {
 			return Page{}, err
 		}
@@ -289,8 +304,48 @@ UPDATE pages SET slug=?, title=?, theme=?, status=?, sort_order=?, meta_title=?,
 	if err != nil {
 		return Page{}, err
 	}
-	_ = s.SyncNavForPage(out)
+	if err := s.SyncNavForPage(out); err != nil {
+		return Page{}, err
+	}
+	// Former homepage kept href="/" in nav; restore /{slug} after demotion.
+	if err := s.syncNavForDemotedHomepages(demoted); err != nil {
+		return Page{}, err
+	}
 	return out, nil
+}
+
+// homepageIDsExcept returns page ids currently marked homepage, excluding skipID.
+func (s *Store) homepageIDsExcept(skipID string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT id FROM pages WHERE is_homepage = 1`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		if skipID != "" && id == skipID {
+			continue
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func (s *Store) syncNavForDemotedHomepages(ids []string) error {
+	for _, id := range ids {
+		p, err := s.GetPage(id)
+		if err != nil {
+			continue
+		}
+		if err := s.SyncNavForPage(p); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // MergePageSettings overlays keys into pages.settings_json without touching nav.
@@ -642,22 +697,14 @@ func (s *Store) GetNavTree() ([]NavItem, error) {
 		return nil, err
 	}
 	// Defensive: skip links whose page was deleted but nav row remains.
-	alive := map[string]struct{}{}
-	rows, err := s.db.Query(`SELECT id FROM pages`)
+	// Also refresh href from page so homepage moves cannot leave stale "/".
+	pages, err := s.ListPages()
 	if err != nil {
 		return nil, err
 	}
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		alive[id] = struct{}{}
-	}
-	rows.Close()
-	if err := rows.Err(); err != nil {
-		return nil, err
+	pagesByID := make(map[string]Page, len(pages))
+	for _, p := range pages {
+		pagesByID[p.ID] = p
 	}
 
 	byID := map[string]*NavItem{}
@@ -665,9 +712,11 @@ func (s *Store) GetNavTree() ([]NavItem, error) {
 	for i := range flat {
 		item := flat[i]
 		if item.Kind != NavKindCategory && item.PageID != "" {
-			if _, ok := alive[item.PageID]; !ok {
+			p, ok := pagesByID[item.PageID]
+			if !ok {
 				continue
 			}
+			item.Href = HrefForPage(p)
 		}
 		item.Children = []NavItem{}
 		cp := item
@@ -789,9 +838,7 @@ func (s *Store) prepareNavTree(items []NavItem) ([]NavItem, error) {
 					if !ok {
 						return nil, fmt.Errorf("%w: unknown page_id %q", ErrInvalidNav, item.PageID)
 					}
-					if item.Href == "" {
-						item.Href = HrefForPage(p)
-					}
+					item.Href = HrefForPage(p)
 				}
 			}
 			kids, err := walk(item.Children, item.Kind)

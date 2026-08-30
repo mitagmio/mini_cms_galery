@@ -27,6 +27,56 @@ func mustPage(t *testing.T, s *Store, slug, title string, home bool) Page {
 	return p
 }
 
+func TestHrefForPage(t *testing.T) {
+	if got := HrefForPage(Page{Slug: "fashion", IsHomepage: true}); got != "/" {
+		t.Fatalf("homepage=%q", got)
+	}
+	if got := HrefForPage(Page{Slug: "before-after", IsHomepage: false}); got != "/before-after" {
+		t.Fatalf("slug=%q", got)
+	}
+	if got := HrefForPage(Page{Slug: "/editorial/", IsHomepage: false}); got != "/editorial" {
+		t.Fatalf("trimmed=%q", got)
+	}
+	if got := HrefForPage(Page{Slug: "", IsHomepage: false}); got != "/" {
+		t.Fatalf("empty=%q", got)
+	}
+}
+
+func TestGetNavTreeOverridesStalePersistedHref(t *testing.T) {
+	s := testStore(t)
+	ba := mustPage(t, s, "before-after", "BEFORE | AFTER", false)
+	fashion := mustPage(t, s, "fashion", "FASHION", true)
+
+	if _, err := s.ReplaceNav([]NavItem{
+		{Label: "BEFORE | AFTER", Kind: NavKindLink, PageID: ba.ID, Visible: true},
+		{Label: "FASHION", Kind: NavKindLink, PageID: fashion.ID, Visible: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate stale DB rows left after a homepage move that skipped SyncNavForPage.
+	if _, err := s.db.Exec(`UPDATE nav SET href = '/' WHERE page_id = ?`, ba.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.db.Exec(`UPDATE nav SET href = '/fashion' WHERE page_id = ?`, fashion.ID); err != nil {
+		t.Fatal(err)
+	}
+
+	tree, err := s.GetNavTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	byLabel := map[string]string{}
+	for _, n := range tree {
+		byLabel[n.Label] = n.Href
+	}
+	if byLabel["BEFORE | AFTER"] != "/before-after" {
+		t.Fatalf("ba=%q want /before-after", byLabel["BEFORE | AFTER"])
+	}
+	if byLabel["FASHION"] != "/" {
+		t.Fatalf("fashion=%q want /", byLabel["FASHION"])
+	}
+}
+
 func TestReplaceNavFillsHrefFromPageID(t *testing.T) {
 	s := testStore(t)
 	about := mustPage(t, s, "about", "ABOUT", false)
@@ -47,6 +97,62 @@ func TestReplaceNavFillsHrefFromPageID(t *testing.T) {
 	}
 	if tree[1].Href != "/" {
 		t.Fatalf("home href=%q", tree[1].Href)
+	}
+}
+
+func TestPatchHomepageResyncsDemotedNavHref(t *testing.T) {
+	s := testStore(t)
+	ba := mustPage(t, s, "before-after", "BEFORE | AFTER", true)
+	fashion := mustPage(t, s, "fashion", "FASHION", false)
+
+	if _, err := s.ReplaceNav([]NavItem{
+		{Label: "BEFORE | AFTER", Kind: NavKindLink, PageID: ba.ID, Visible: true},
+		{Label: "FASHION", Kind: NavKindLink, PageID: fashion.ID, Visible: true},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SyncNavForPage(ba); err != nil {
+		t.Fatal(err)
+	}
+
+	tree, err := s.GetNavTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree[0].Href != "/" {
+		t.Fatalf("ba as home href=%q", tree[0].Href)
+	}
+
+	if _, err := s.PatchPage(fashion.ID, map[string]any{"is_homepage": true}); err != nil {
+		t.Fatal(err)
+	}
+
+	tree, err = s.GetNavTree()
+	if err != nil {
+		t.Fatal(err)
+	}
+	byLabel := map[string]string{}
+	for _, n := range tree {
+		byLabel[n.Label] = n.Href
+	}
+	if byLabel["BEFORE | AFTER"] != "/before-after" {
+		t.Fatalf("demoted ba href=%q want /before-after", byLabel["BEFORE | AFTER"])
+	}
+	if byLabel["FASHION"] != "/" {
+		t.Fatalf("fashion home href=%q want /", byLabel["FASHION"])
+	}
+
+	flat, err := s.GetNavFlat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, n := range flat {
+		if n.PageID == ba.ID && n.Href != "/before-after" {
+			t.Fatalf("persisted ba nav href=%q", n.Href)
+		}
+		if n.PageID == fashion.ID && n.Href != "/" {
+			t.Fatalf("persisted fashion nav href=%q", n.Href)
+		}
 	}
 }
 

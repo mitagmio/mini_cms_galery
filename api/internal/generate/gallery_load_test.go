@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"image/color"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,4 +145,67 @@ func TestGenerateBAFirstPairLoad(t *testing.T) {
 	if !strings.Contains(html, `class="theme_header`) {
 		t.Fatal("nav chrome required")
 	}
+}
+
+func TestGeneratePanoramaUsesDisplayWebP(t *testing.T) {
+	s := testStore(t)
+	if _, err := s.PutSettings(cms.SiteSettings{SiteName: "Test", CanonicalBase: "https://www.sheyanova.art"}); err != nil {
+		t.Fatal(err)
+	}
+	up := filepath.Join(t.TempDir(), "up")
+	if err := os.MkdirAll(up, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	id := "gallimg01deadbeef"
+	orig := id + ".png"
+	writeSolidPNG(t, filepath.Join(up, orig), color.NRGBA{R: 90, G: 110, B: 130, A: 255}, 3600, 4800)
+	st, err := os.Stat(filepath.Join(up, orig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateMedia(cms.Media{
+		ID: id, Filename: orig, URL: "/media/" + orig, SizeBytes: st.Size(), Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.CreatePage(cms.Page{
+		Slug: "beauty-opt", Title: "Beauty", Theme: cms.ThemePanoramaGallery, Status: "draft",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ReplaceBlocks(p.ID, []cms.Block{
+		{Type: cms.BlockGalleryImage, Data: cms.MustJSON(map[string]any{
+			"media_id": id, "url": "/media/" + orig, "alt": "shot",
+		})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	outDir := t.TempDir()
+	g, err := New(s, Config{OutDir: outDir, UploadDir: up, PreviewBase: "/preview"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.writePage(mustGet(t, s, p.ID)); err != nil {
+		t.Fatal(err)
+	}
+	htmlb, err := os.ReadFile(filepath.Join(outDir, "beauty-opt", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(htmlb)
+	want := `/assets/cdn/` + id + `_display.webp`
+	if !strings.Contains(html, want) {
+		t.Fatalf("gallery must use display webp %q", want)
+	}
+	if strings.Contains(html, `/assets/cdn/`+orig) {
+		t.Fatal("must not ship full original in panorama gallery")
+	}
+	cdn := filepath.Join(outDir, "assets", "cdn", id+"_display.webp")
+	// copyMedia runs during GenerateSite; writePage alone may not copy — ensure generate created display in uploads
+	disp := filepath.Join(up, id+"_display.webp")
+	if _, err := os.Stat(disp); err != nil {
+		t.Fatalf("display variant missing in uploads: %v", err)
+	}
+	_ = cdn
 }

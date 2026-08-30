@@ -10,10 +10,11 @@ function newId() {
 
 function pageHref(page) {
   if (!page) return ''
+  // Homepage always maps to site root, even when the page still has a slug.
+  if (page.is_homepage) return '/'
   const slug = String(page.slug || '')
     .replace(/^\/+/, '')
     .replace(/\/+$/, '')
-  if (page.is_homepage && !slug) return '/'
   return slug ? `/${slug}` : '/'
 }
 
@@ -48,14 +49,21 @@ function blankDropdown() {
   }
 }
 
-function normalizeItem(raw) {
-  const children = Array.isArray(raw.children) ? raw.children.map(normalizeItem) : []
+function normalizeItem(raw, pagesById) {
+  const children = Array.isArray(raw.children)
+    ? raw.children.map((c) => normalizeItem(c, pagesById))
+    : []
   const kind = raw.kind === 'category' || children.length > 0 ? 'category' : 'link'
+  const pageId = raw.page_id || ''
+  let href = raw.href || raw.external_url || ''
+  if (kind === 'link' && pageId && pagesById?.[pageId]) {
+    href = pageHref(pagesById[pageId])
+  }
   return {
     id: raw.id || newId(),
     label: raw.label || raw.title || '',
-    href: raw.href || raw.external_url || '',
-    page_id: raw.page_id || '',
+    href,
+    page_id: pageId,
     kind,
     visible: raw.visible !== false,
     children: kind === 'category' ? children.map((c) => ({ ...c, kind: 'link', children: [] })) : [],
@@ -70,20 +78,25 @@ function moveItem(list, from, to) {
   return next
 }
 
-function serializeItem(item, sortOrder) {
+function serializeItem(item, sortOrder, pagesById) {
   const kind = item.kind === 'category' ? 'category' : 'link'
+  const pageId = item.page_id || ''
+  let href = String(item.href || '').trim()
+  if (kind === 'link' && pageId && pagesById?.[pageId]) {
+    href = pageHref(pagesById[pageId])
+  }
   const out = {
     id: item.id,
     label: String(item.label || '').trim(),
-    href: String(item.href || '').trim(),
-    page_id: item.page_id || '',
+    href,
+    page_id: pageId,
     kind,
     visible: item.visible !== false,
     sort_order: sortOrder,
   }
   if (kind === 'category') {
     out.children = (item.children || []).map((child, i) =>
-      serializeItem({ ...child, kind: 'link' }, i)
+      serializeItem({ ...child, kind: 'link' }, i, pagesById)
     )
   }
   return out
@@ -103,6 +116,10 @@ function PageSelect({ pages, value, onChange }) {
 }
 
 function LinkFields({ item, pages, onChange }) {
+  const linked = Boolean(item.page_id)
+  const linkedPage = linked ? pages.find((p) => p.id === item.page_id) : null
+  const displayHref = linkedPage ? pageHref(linkedPage) : item.href || ''
+
   function pickPage(pageId) {
     if (!pageId) {
       onChange({ page_id: '', href: item.href })
@@ -128,9 +145,14 @@ function LinkFields({ item, pages, onChange }) {
       <label>
         URL
         <input
-          value={item.href || ''}
+          value={displayHref}
           placeholder="/about or https://…"
-          onChange={(e) => onChange({ href: e.target.value })}
+          readOnly={linked}
+          title={linked ? 'Derived from the linked page (homepage → /, else /{slug})' : undefined}
+          onChange={(e) => {
+            if (linked) return
+            onChange({ href: e.target.value })
+          }}
         />
       </label>
     </div>
@@ -313,8 +335,10 @@ export default function NavEditor() {
         admin.nav.get(),
         admin.pages.list().catch(() => ({ pages: [] })),
       ])
-      setItems((navRes.nav || navRes.items || navRes.tree || []).map(normalizeItem))
-      setPages(pagesRes.pages || pagesRes.items || [])
+      const pageList = pagesRes.pages || pagesRes.items || []
+      const pagesById = Object.fromEntries(pageList.map((p) => [p.id, p]))
+      setPages(pageList)
+      setItems((navRes.nav || navRes.items || navRes.tree || []).map((n) => normalizeItem(n, pagesById)))
     } catch (e) {
       setItems([])
       toast.error(e.message)
@@ -334,9 +358,10 @@ export default function NavEditor() {
   async function save() {
     setSaving(true)
     try {
-      const payload = items.map((item, i) => serializeItem(item, i))
+      const pagesById = Object.fromEntries(pages.map((p) => [p.id, p]))
+      const payload = items.map((item, i) => serializeItem(item, i, pagesById))
       const data = await admin.nav.put({ nav: payload })
-      setItems((data.nav || payload).map(normalizeItem))
+      setItems((data.nav || payload).map((n) => normalizeItem(n, pagesById)))
       toast.ok('Menu saved. Use Preview → Generate to refresh the draft site.')
     } catch (err) {
       toast.error(err.message)

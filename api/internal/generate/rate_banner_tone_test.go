@@ -127,7 +127,7 @@ func TestRenderRateBannerManualAndAuto(t *testing.T) {
 		"price":      "20",
 		"currency":   "$",
 		"text_color": "",
-	}, "/media/beach.png", lightPath)
+	}, "/media/beach.png", lightPath, "eager", 48, 64)
 	if !strings.Contains(html, "rate-banner--light") {
 		t.Fatalf("auto should mark light banner with charcoal --light, got %s", html)
 	}
@@ -137,12 +137,15 @@ func TestRenderRateBannerManualAndAuto(t *testing.T) {
 	if strings.Contains(html, "rate-banner--outline") {
 		t.Fatal("auto light must use charcoal --light, not outline")
 	}
+	if !strings.Contains(html, `loading="eager"`) || !strings.Contains(html, `width="48"`) {
+		t.Fatalf("eager first-row attrs missing: %s", html)
+	}
 
 	html = g.renderRateBanner(map[string]any{
 		"form_key":   "fashion",
 		"caption":    "FASHION",
 		"text_color": "#ffffff",
-	}, "/media/beach.png", lightPath)
+	}, "/media/beach.png", lightPath, "lazy", 0, 0)
 	if !strings.Contains(html, "rate-banner--custom") || !strings.Contains(html, `style="--rate-text:#ffffff;color:#ffffff`) {
 		t.Fatalf("manual white override missing: %s", html)
 	}
@@ -155,7 +158,7 @@ func TestRenderRateBannerManualAndAuto(t *testing.T) {
 		"caption":        "FASHION",
 		"text_color":     "#1a4a7a",
 		"text_backdrop":  false,
-	}, "/media/beach.png", lightPath)
+	}, "/media/beach.png", lightPath, "lazy", 0, 0)
 	if !strings.Contains(html, "--rate-text:#1a4a7a") {
 		t.Fatalf("custom color missing: %s", html)
 	}
@@ -166,7 +169,7 @@ func TestRenderRateBannerManualAndAuto(t *testing.T) {
 	html = g.renderRateBanner(map[string]any{
 		"form_key": "beauty",
 		"caption":  "BEAUTY",
-	}, "", "")
+	}, "", "", "", 0, 0)
 	if !strings.Contains(html, "is-placeholder") {
 		t.Fatal("no image must be placeholder")
 	}

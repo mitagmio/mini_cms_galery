@@ -304,6 +304,13 @@ func (g *Generator) mediaFilePath(id, url string) string {
 	candidates := []string{}
 	if id != "" {
 		if m, err := g.Store.GetMedia(id); err == nil {
+			// Prefer gallery display / thumb for width/height attrs (faster + matches src).
+			if fn, err := cms.EnsureMediaDisplay(g.Cfg.UploadDir, m); err == nil && fn != "" {
+				candidates = append(candidates, filepath.Join(g.Cfg.UploadDir, fn))
+			}
+			if tf := strings.TrimSpace(m.ThumbFilename); tf != "" {
+				candidates = append(candidates, filepath.Join(g.Cfg.UploadDir, tf))
+			}
 			candidates = append(candidates,
 				filepath.Join(g.Cfg.UploadDir, m.Filename),
 				filepath.Join(g.Cfg.ThemeSrc, "assets", "cdn", m.Filename),
@@ -543,10 +550,7 @@ func (g *Generator) writePage(p cms.Page) error {
 	}
 
 	active := p.Slug
-	if p.IsHomepage {
-		active = "before-after"
-	}
-	activeHref := g.sitePath("/" + active)
+	activeHref := g.sitePath(cms.HrefForPage(p))
 
 	formatData := template.JS(`{"page":{"type":"gallery","layout":"vertical","title":null,"assets":[]},"theme":{"gallery_image_padding":"Normal","listing_thumbnail_size":"Auto"}}`)
 	if name == cms.ThemePanoramaGallery || name == cms.ThemeLookbookGallery {
@@ -617,14 +621,35 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 	used := make([]cms.Media, 0)
 	seen := map[string]bool{}
 
+	track := func(m cms.Media) {
+		key := m.Filename
+		if key == "" {
+			key = m.ID
+		}
+		if key == "" || seen[key] {
+			return
+		}
+		seen[key] = true
+		used = append(used, m)
+	}
+	// resolve picks gallery display WebP when available:
+	// {id}_display.webp (~2000px) → thumb → original. Masters stay in uploads.
 	resolve := func(id, url string) (string, error) {
 		if id != "" {
 			m, err := g.Store.GetMedia(id)
 			if err == nil {
-				if !seen[m.ID] {
-					seen[m.ID] = true
-					used = append(used, m)
+				if fn, derr := cms.EnsureMediaDisplay(g.Cfg.UploadDir, m); derr == nil && fn != "" {
+					track(cms.Media{ID: m.ID + "_display", Filename: fn, URL: "/media/" + fn})
+					return "/assets/cdn/" + fn, nil
 				}
+				if tf := strings.TrimSpace(m.ThumbFilename); tf != "" {
+					p := filepath.Join(g.Cfg.UploadDir, tf)
+					if st, e := os.Stat(p); e == nil && !st.IsDir() && st.Size() > 0 {
+						track(cms.Media{ID: m.ID + "_thumb", Filename: tf, URL: "/media/" + tf})
+						return "/assets/cdn/" + tf, nil
+					}
+				}
+				track(m)
 				return "/assets/cdn/" + m.Filename, nil
 			}
 		}
@@ -633,20 +658,31 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 		}
 		if strings.HasPrefix(url, "/media/") {
 			filename := strings.TrimPrefix(url, "/media/")
-			m := cms.Media{ID: filename, Filename: filename, URL: url}
-			if !seen[m.Filename] {
-				seen[m.Filename] = true
-				used = append(used, m)
+			// Derive media id from conventional {id}.ext master names.
+			base := strings.TrimSuffix(filename, filepath.Ext(filename))
+			if base != "" && !strings.Contains(base, "_") {
+				if m, err := g.Store.GetMedia(base); err == nil {
+					if fn, derr := cms.EnsureMediaDisplay(g.Cfg.UploadDir, m); derr == nil && fn != "" {
+						track(cms.Media{ID: m.ID + "_display", Filename: fn, URL: "/media/" + fn})
+						return "/assets/cdn/" + fn, nil
+					}
+				}
 			}
+			track(cms.Media{ID: filename, Filename: filename, URL: url})
 			return "/assets/cdn/" + filename, nil
 		}
 		if strings.HasPrefix(url, "/assets/cdn/") {
 			filename := strings.TrimPrefix(url, "/assets/cdn/")
-			m := cms.Media{ID: filename, Filename: filename, URL: url}
-			if !seen[m.Filename] {
-				seen[m.Filename] = true
-				used = append(used, m)
+			base := strings.TrimSuffix(filename, filepath.Ext(filename))
+			if base != "" && !strings.Contains(base, "_") {
+				if m, err := g.Store.GetMedia(base); err == nil {
+					if fn, derr := cms.EnsureMediaDisplay(g.Cfg.UploadDir, m); derr == nil && fn != "" {
+						track(cms.Media{ID: m.ID + "_display", Filename: fn, URL: "/media/" + fn})
+						return "/assets/cdn/" + fn, nil
+					}
+				}
 			}
+			track(cms.Media{ID: filename, Filename: filename, URL: url})
 			return url, nil
 		}
 		return url, nil
@@ -654,6 +690,7 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 
 	firstComparison := true
 	firstArticleImage := true
+	rateBannerIdx := 0
 	articleTheme := cms.IsArticleTheme(p.Theme)
 	for i, b := range p.Blocks {
 		var data map[string]any
@@ -804,8 +841,17 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 		case cms.BlockRateBanner:
 			mid, _ := data["media_id"].(string)
 			url, _ := data["url"].(string)
-			src, _ := resolve(mid, url)
-			html = g.renderRateBanner(data, src, g.rateBannerAnalyzePath(mid, url))
+			src, displayFn := g.resolveRateBannerSrc(mid, url, &used, seen)
+			loading := "lazy"
+			if rateBannerIdx < 3 {
+				loading = "eager"
+			}
+			rateBannerIdx++
+			w, h := 0, 0
+			if displayFn != "" {
+				w, h, _ = g.cachedImageSize(filepath.Join(g.Cfg.UploadDir, displayFn))
+			}
+			html = g.renderRateBanner(data, src, g.rateBannerAnalyzePath(mid, url), loading, w, h)
 
 		default:
 			html = fmt.Sprintf(`<!-- unknown block type %s -->`, template.HTMLEscapeString(b.Type))
@@ -813,6 +859,55 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 		out = append(out, renderedBlock{HTML: template.HTML(html), Type: b.Type})
 	}
 	return out, used, nil
+}
+
+// resolveRateBannerSrc picks a compressed display file for rate tiles:
+// {id}_banner.webp (~1000px) → thumb → original. Only the display file is
+// queued for copyMedia so preview/front never ship multi‑MB originals for banners.
+func (g *Generator) resolveRateBannerSrc(id, url string, used *[]cms.Media, seen map[string]bool) (src, displayFilename string) {
+	track := func(m cms.Media) {
+		key := m.Filename
+		if key == "" {
+			key = m.ID
+		}
+		if key == "" || seen[key] {
+			return
+		}
+		seen[key] = true
+		*used = append(*used, m)
+	}
+	if id != "" {
+		m, err := g.Store.GetMedia(id)
+		if err == nil {
+			if fn, berr := cms.EnsureMediaBanner(g.Cfg.UploadDir, m); berr == nil && fn != "" {
+				track(cms.Media{ID: m.ID + "_banner", Filename: fn, URL: "/media/" + fn})
+				return "/assets/cdn/" + fn, fn
+			}
+			if tf := strings.TrimSpace(m.ThumbFilename); tf != "" {
+				p := filepath.Join(g.Cfg.UploadDir, tf)
+				if st, e := os.Stat(p); e == nil && !st.IsDir() && st.Size() > 0 {
+					track(cms.Media{ID: m.ID + "_thumb", Filename: tf, URL: "/media/" + tf})
+					return "/assets/cdn/" + tf, tf
+				}
+			}
+			track(m)
+			return "/assets/cdn/" + m.Filename, m.Filename
+		}
+	}
+	if url == "" {
+		return "", ""
+	}
+	if strings.HasPrefix(url, "/media/") {
+		filename := strings.TrimPrefix(url, "/media/")
+		track(cms.Media{ID: filename, Filename: filename, URL: url})
+		return "/assets/cdn/" + filename, filename
+	}
+	if strings.HasPrefix(url, "/assets/cdn/") {
+		filename := strings.TrimPrefix(url, "/assets/cdn/")
+		track(cms.Media{ID: filename, Filename: filename, URL: url})
+		return url, filename
+	}
+	return url, ""
 }
 
 // pathURL percent-encodes each path segment so Cyrillic filenames work on GitHub Pages.

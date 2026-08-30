@@ -463,18 +463,24 @@ func (h *Handler) MediaByID(w http.ResponseWriter, r *http.Request) {
 		h.Media(w, r)
 		return
 	}
-	if id == "backfill-thumbs" {
+	if id == "backfill-thumbs" || id == "backfill-variants" {
 		if r.Method != http.MethodPost {
 			httpx.WriteError(w, http.StatusMethodNotAllowed, "method not allowed")
 			return
 		}
-		created, skipped, failed, err := h.Store.EnsureMediaThumbs()
+		st, err := h.Store.EnsureMediaVariants()
 		if err != nil {
 			httpx.WriteError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{
-			"ok": true, "created": created, "skipped": skipped, "failed": failed,
+			"ok":              true,
+			"created":         st.ThumbCreated, // legacy alias
+			"thumb_created":   st.ThumbCreated,
+			"banner_created":  st.BannerCreated,
+			"display_created": st.DisplayCreated,
+			"skipped":         st.Skipped,
+			"failed":          st.Failed,
 		})
 		return
 	}
@@ -583,6 +589,12 @@ func (h *Handler) uploadMedia(w http.ResponseWriter, r *http.Request) {
 	} else {
 		m.ThumbFilename = thumbFn
 		m.ThumbURL = thumbURL
+	}
+	if _, berr := GenerateMediaBanner(h.Store.UploadDir(), id, name); berr != nil {
+		log.Printf("cms: banner upload id=%s: %v", id, berr)
+	}
+	if _, derr := GenerateMediaDisplay(h.Store.UploadDir(), id, name); derr != nil {
+		log.Printf("cms: display upload id=%s: %v", id, derr)
 	}
 	out, err := h.Store.CreateMedia(m)
 	if err != nil {

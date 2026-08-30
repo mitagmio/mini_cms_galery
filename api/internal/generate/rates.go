@@ -73,7 +73,7 @@ func mapBoolDefaultTrue(data map[string]any, key string) bool {
 	}
 }
 
-func (g *Generator) renderRateBanner(data map[string]any, src, analyzePath string) string {
+func (g *Generator) renderRateBanner(data map[string]any, src, analyzePath, loading string, w, h int) string {
 	key := cms.RateFormKeyFromData(data)
 	caption := strings.TrimSpace(mapString(data, "caption"))
 	if caption == "" && key != "" {
@@ -92,7 +92,14 @@ func (g *Generator) renderRateBanner(data map[string]any, src, analyzePath strin
 	hasImage := strings.TrimSpace(src) != ""
 	if hasImage {
 		imgSrc := pathURL(src)
-		media = fmt.Sprintf(`<img class="rate-banner__img" src="%s" alt="%s" loading="lazy"/>`, imgSrc, esc(alt))
+		if loading == "" {
+			loading = "lazy"
+		}
+		dim := imgDimensionAttrs(w, h)
+		media = fmt.Sprintf(
+			`<img class="rate-banner__img" src="%s" alt="%s" loading="%s" decoding="async"%s/>`,
+			imgSrc, esc(alt), esc(loading), dim,
+		)
 	} else {
 		cls += " is-placeholder"
 	}
