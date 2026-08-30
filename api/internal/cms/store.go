@@ -607,6 +607,28 @@ FROM media WHERE id = ?`, id).Scan(
 	return m, err
 }
 
+// GetMediaByFilename finds a media row by stored filename or original_name.
+// Used when block media_id is stale but /media/{legacy} still points at a library file.
+func (s *Store) GetMediaByFilename(filename string) (Media, error) {
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		return Media{}, ErrNotFound
+	}
+	var m Media
+	err := s.db.QueryRow(`
+SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at
+FROM media WHERE filename = ? OR original_name = ?
+ORDER BY CASE WHEN filename = ? THEN 0 ELSE 1 END
+LIMIT 1`, filename, filename, filename).Scan(
+		&m.ID, &m.Filename, &m.OriginalName, &m.URL, &m.ThumbFilename, &m.ThumbURL,
+		&m.Title, &m.Alt, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Media{}, ErrNotFound
+	}
+	return m, err
+}
+
 func (s *Store) CreateMedia(m Media) (Media, error) {
 	if m.ID == "" {
 		m.ID = NewID()

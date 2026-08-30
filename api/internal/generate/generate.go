@@ -634,56 +634,58 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 	}
 	// resolve picks gallery display WebP when available:
 	// {id}_display.webp (~2000px) → thumb → original. Masters stay in uploads.
-	resolve := func(id, url string) (string, error) {
-		if id != "" {
-			m, err := g.Store.GetMedia(id)
-			if err == nil {
-				if fn, derr := cms.EnsureMediaDisplay(g.Cfg.UploadDir, m); derr == nil && fn != "" {
-					track(cms.Media{ID: m.ID + "_display", Filename: fn, URL: "/media/" + fn})
-					return "/assets/cdn/" + fn, nil
-				}
-				if tf := strings.TrimSpace(m.ThumbFilename); tf != "" {
-					p := filepath.Join(g.Cfg.UploadDir, tf)
-					if st, e := os.Stat(p); e == nil && !st.IsDir() && st.Size() > 0 {
-						track(cms.Media{ID: m.ID + "_thumb", Filename: tf, URL: "/media/" + tf})
-						return "/assets/cdn/" + tf, nil
-					}
-				}
-				track(m)
-				return "/assets/cdn/" + m.Filename, nil
+	resolveFromMedia := func(m cms.Media) string {
+		if fn, derr := cms.EnsureMediaDisplay(g.Cfg.UploadDir, m); derr == nil && fn != "" {
+			track(cms.Media{ID: m.ID + "_display", Filename: fn, URL: "/media/" + fn})
+			return "/assets/cdn/" + fn
+		}
+		if tf := strings.TrimSpace(m.ThumbFilename); tf != "" {
+			p := filepath.Join(g.Cfg.UploadDir, tf)
+			if st, e := os.Stat(p); e == nil && !st.IsDir() && st.Size() > 0 {
+				track(cms.Media{ID: m.ID + "_thumb", Filename: tf, URL: "/media/" + tf})
+				return "/assets/cdn/" + tf
 			}
+		}
+		track(m)
+		return "/assets/cdn/" + m.Filename
+	}
+	lookupMedia := func(id, filename string) (cms.Media, bool) {
+		if id != "" {
+			if m, err := g.Store.GetMedia(id); err == nil {
+				return m, true
+			}
+		}
+		if filename != "" {
+			if m, err := g.Store.GetMediaByFilename(filename); err == nil {
+				return m, true
+			}
+			// Conventional {id}.ext masters (no underscores in id).
+			base := strings.TrimSuffix(filename, filepath.Ext(filename))
+			if base != "" && !strings.Contains(base, "_") {
+				if m, err := g.Store.GetMedia(base); err == nil {
+					return m, true
+				}
+			}
+		}
+		return cms.Media{}, false
+	}
+	resolve := func(id, url string) (string, error) {
+		filename := ""
+		switch {
+		case strings.HasPrefix(url, "/media/"):
+			filename = strings.TrimPrefix(url, "/media/")
+		case strings.HasPrefix(url, "/assets/cdn/"):
+			filename = strings.TrimPrefix(url, "/assets/cdn/")
+		}
+		if m, ok := lookupMedia(id, filename); ok {
+			return resolveFromMedia(m), nil
 		}
 		if url == "" {
 			return "", nil
 		}
-		if strings.HasPrefix(url, "/media/") {
-			filename := strings.TrimPrefix(url, "/media/")
-			// Derive media id from conventional {id}.ext master names.
-			base := strings.TrimSuffix(filename, filepath.Ext(filename))
-			if base != "" && !strings.Contains(base, "_") {
-				if m, err := g.Store.GetMedia(base); err == nil {
-					if fn, derr := cms.EnsureMediaDisplay(g.Cfg.UploadDir, m); derr == nil && fn != "" {
-						track(cms.Media{ID: m.ID + "_display", Filename: fn, URL: "/media/" + fn})
-						return "/assets/cdn/" + fn, nil
-					}
-				}
-			}
-			track(cms.Media{ID: filename, Filename: filename, URL: url})
+		if filename != "" {
+			track(cms.Media{ID: filename, Filename: filename, URL: "/media/" + filename})
 			return "/assets/cdn/" + filename, nil
-		}
-		if strings.HasPrefix(url, "/assets/cdn/") {
-			filename := strings.TrimPrefix(url, "/assets/cdn/")
-			base := strings.TrimSuffix(filename, filepath.Ext(filename))
-			if base != "" && !strings.Contains(base, "_") {
-				if m, err := g.Store.GetMedia(base); err == nil {
-					if fn, derr := cms.EnsureMediaDisplay(g.Cfg.UploadDir, m); derr == nil && fn != "" {
-						track(cms.Media{ID: m.ID + "_display", Filename: fn, URL: "/media/" + fn})
-						return "/assets/cdn/" + fn, nil
-					}
-				}
-			}
-			track(cms.Media{ID: filename, Filename: filename, URL: url})
-			return url, nil
 		}
 		return url, nil
 	}
@@ -876,36 +878,53 @@ func (g *Generator) resolveRateBannerSrc(id, url string, used *[]cms.Media, seen
 		seen[key] = true
 		*used = append(*used, m)
 	}
+	filename := ""
+	switch {
+	case strings.HasPrefix(url, "/media/"):
+		filename = strings.TrimPrefix(url, "/media/")
+	case strings.HasPrefix(url, "/assets/cdn/"):
+		filename = strings.TrimPrefix(url, "/assets/cdn/")
+	}
+	var m cms.Media
+	found := false
 	if id != "" {
-		m, err := g.Store.GetMedia(id)
-		if err == nil {
-			if fn, berr := cms.EnsureMediaBanner(g.Cfg.UploadDir, m); berr == nil && fn != "" {
-				track(cms.Media{ID: m.ID + "_banner", Filename: fn, URL: "/media/" + fn})
-				return "/assets/cdn/" + fn, fn
-			}
-			if tf := strings.TrimSpace(m.ThumbFilename); tf != "" {
-				p := filepath.Join(g.Cfg.UploadDir, tf)
-				if st, e := os.Stat(p); e == nil && !st.IsDir() && st.Size() > 0 {
-					track(cms.Media{ID: m.ID + "_thumb", Filename: tf, URL: "/media/" + tf})
-					return "/assets/cdn/" + tf, tf
+		if row, err := g.Store.GetMedia(id); err == nil {
+			m, found = row, true
+		}
+	}
+	if !found && filename != "" {
+		if row, err := g.Store.GetMediaByFilename(filename); err == nil {
+			m, found = row, true
+		} else {
+			base := strings.TrimSuffix(filename, filepath.Ext(filename))
+			if base != "" && !strings.Contains(base, "_") {
+				if row, err := g.Store.GetMedia(base); err == nil {
+					m, found = row, true
 				}
 			}
-			track(m)
-			return "/assets/cdn/" + m.Filename, m.Filename
 		}
+	}
+	if found {
+		if fn, berr := cms.EnsureMediaBanner(g.Cfg.UploadDir, m); berr == nil && fn != "" {
+			track(cms.Media{ID: m.ID + "_banner", Filename: fn, URL: "/media/" + fn})
+			return "/assets/cdn/" + fn, fn
+		}
+		if tf := strings.TrimSpace(m.ThumbFilename); tf != "" {
+			p := filepath.Join(g.Cfg.UploadDir, tf)
+			if st, e := os.Stat(p); e == nil && !st.IsDir() && st.Size() > 0 {
+				track(cms.Media{ID: m.ID + "_thumb", Filename: tf, URL: "/media/" + tf})
+				return "/assets/cdn/" + tf, tf
+			}
+		}
+		track(m)
+		return "/assets/cdn/" + m.Filename, m.Filename
 	}
 	if url == "" {
 		return "", ""
 	}
-	if strings.HasPrefix(url, "/media/") {
-		filename := strings.TrimPrefix(url, "/media/")
-		track(cms.Media{ID: filename, Filename: filename, URL: url})
+	if filename != "" {
+		track(cms.Media{ID: filename, Filename: filename, URL: "/media/" + filename})
 		return "/assets/cdn/" + filename, filename
-	}
-	if strings.HasPrefix(url, "/assets/cdn/") {
-		filename := strings.TrimPrefix(url, "/assets/cdn/")
-		track(cms.Media{ID: filename, Filename: filename, URL: url})
-		return url, filename
 	}
 	return url, ""
 }

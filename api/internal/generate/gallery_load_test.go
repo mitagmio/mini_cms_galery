@@ -209,3 +209,61 @@ func TestGeneratePanoramaUsesDisplayWebP(t *testing.T) {
 	}
 	_ = cdn
 }
+
+func TestGenerateResolvesDisplayByFilenameWhenIDMissing(t *testing.T) {
+	s := testStore(t)
+	if _, err := s.PutSettings(cms.SiteSettings{SiteName: "Test", CanonicalBase: "https://www.sheyanova.art"}); err != nil {
+		t.Fatal(err)
+	}
+	up := filepath.Join(t.TempDir(), "up")
+	if err := os.MkdirAll(up, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	id := "orphan01deadbeef"
+	orig := "140_subject-legacy.jpg"
+	writeSolidPNG(t, filepath.Join(up, orig), color.NRGBA{R: 40, G: 80, B: 120, A: 255}, 2400, 3200)
+	st, err := os.Stat(filepath.Join(up, orig))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateMedia(cms.Media{
+		ID: id, Filename: orig, OriginalName: orig, URL: "/media/" + orig, SizeBytes: st.Size(), Mime: "image/png",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	p, err := s.CreatePage(cms.Page{
+		Slug: "product-opt", Title: "Product", Theme: cms.ThemePanoramaGallery, Status: "draft",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Stale media_id + legacy URL — resolve must still pick display via filename.
+	if _, err := s.ReplaceBlocks(p.ID, []cms.Block{
+		{Type: cms.BlockGalleryImage, Data: cms.MustJSON(map[string]any{
+			"media_id": "deadbeef00000000", "url": "/media/" + orig, "alt": "legacy",
+		})},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	outDir := t.TempDir()
+	g, err := New(s, Config{OutDir: outDir, UploadDir: up, PreviewBase: "/preview"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := g.writePage(mustGet(t, s, p.ID)); err != nil {
+		t.Fatal(err)
+	}
+	htmlb, err := os.ReadFile(filepath.Join(outDir, "product-opt", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	html := string(htmlb)
+	want := `/assets/cdn/` + id + `_display.webp`
+	if !strings.Contains(html, want) {
+		t.Fatalf("must resolve display via filename, want %q in html", want)
+	}
+	if strings.Contains(html, `/assets/cdn/`+orig) {
+		t.Fatal("must not ship legacy original when display exists")
+	}
+}
+
