@@ -107,6 +107,8 @@ func TestGenerateLookbookHTML(t *testing.T) {
 		`class="lookbook-grid"`,
 		`class="theme_header`,
 		`class="hide-for-small theme_menu"`,
+		`data-mobile-nav=`,
+		`mobile-nav.js`,
 		`stylesheet.css`,
 		`id="lookbook-overlay"`,
 		`id="assets"`,

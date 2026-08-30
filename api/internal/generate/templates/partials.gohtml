@@ -1,6 +1,7 @@
 {{define "nav"}}
-<button class="hide-for-large button-mobile-toggler" data-toggle-nav="" aria-label="Menu">
+<button class="hide-for-large button-mobile-toggler" data-toggle-nav="" aria-label="Menu" aria-expanded="false" aria-controls="themeMobileNav">
 <svg class="icon-reorder" height="14" viewBox="0 0 20 14" width="20" xmlns="http://www.w3.org/2000/svg"><path d="M0 1.25C0 .56.556 0 1.25 0h17.5C19.44 0 20 .555 20 1.25c0 .69-.556 1.25-1.25 1.25H1.25C.56 2.5 0 1.945 0 1.25zm0 11.5c0-.69.556-1.25 1.25-1.25h17.5c.69 0 1.25.555 1.25 1.25 0 .69-.556 1.25-1.25 1.25H1.25C.56 14 0 13.445 0 12.75zM0 7c0-.69.556-1.25 1.25-1.25h17.5c.69 0 1.25.555 1.25 1.25 0 .69-.556 1.25-1.25 1.25H1.25C.56 8.25 0 7.695 0 7z" fill-rule="evenodd"></path></svg>
+<svg class="icon-remove" height="16" preserveAspectRatio="xMidYMid meet" version="1.0" viewBox="0 0 16 16" width="20" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g fill="#000000" stroke="none" transform="translate(0,16) scale(0.1,-0.1)"><path d="M12 148 c-9 -12 -6 -20 17 -42 l29 -28 -31 -28 c-26 -23 -30 -31 -20 -41 10 -10 19 -7 43 16 l30 29 30 -29 c24 -23 33 -26 43 -16 10 10 6 18 -20 41 l-31 28 29 28 c23 22 26 30 17 42 -10 12 -17 9 -40 -17 l-28 -31 -28 31 c-23 26 -30 29 -40 17z"></path></g></svg>
 </button>
 <ul class="hide-for-small theme_menu" id="menu">
 {{- range .Nav }}
@@ -48,6 +49,59 @@
 </li>
 {{- end }}
 </ul>
+<nav class="hide-for-large theme_mobile_nav" data-mobile-nav="" id="themeMobileNav" aria-hidden="true">
+<div class="mobile_theme_menu_wrapper padding-div">
+<ul class="mobile_theme_menu">
+{{- range .Nav }}
+{{- if eq .Kind "category" }}
+<li class="mobile_category">
+<p class="mobile_category_name"><span>{{.Label}}</span></p>
+<ul>
+{{- range .Children }}
+<li class="mobile_menu_item{{if eq (trimSlash .Href) (trimSlash $.ActiveHref)}} selected{{end}}">
+<a class="mobile_menu_link" href="{{.Href}}">{{.Label}}</a>
+</li>
+{{- end }}
+</ul>
+</li>
+{{- else }}
+<li class="mobile_menu_item{{if eq (trimSlash .Href) (trimSlash $.ActiveHref)}} selected{{end}}">
+<a class="mobile_menu_link" href="{{.Href}}">{{.Label}}</a>
+</li>
+{{- end }}
+{{- end }}
+</ul>
+<ul class="theme_social">
+{{- if .Settings.InstagramURL }}
+<li class="icon_instagram social_icon">
+<a href="{{.Settings.InstagramURL}}" target="_blank" rel="noopener">
+<svg class="social-icon" viewBox="-70 -150 1000 1000" xmlns="http://www.w3.org/2000/svg"><path d="M571 500q0-59-41-101t-101-42-101 42-42 101 42 101 101 42 101-42 41-101zm77 0q0 91-64 156t-155 64-156-64-64-156 64-156 156-64 155 64 64 156zm61-229q0 21-15 36t-37 15-36-15-15-36 15-36 36-15 37 15 15 36zM429 148H327l-54 2-57 5-40 11q-28 11-49 32t-33 49q-6 16-10 40t-6 58-1 53 0 59 0 43 0 43 0 59 1 53 6 58l10 40q12 28 33 49t49 32q16 6 40 11t57 5 54 2 59 0 43 0 42 0 59 0 54-2 58-5 39-11q28-11 50-32t32-49q6-16 10-40t6-58 1-53 0-59 0-43 0-43 0-59-1-53-6-58l-10-40q-11-28-32-49t-50-32q-16-6-39-11t-58-5-54-2-59 0-42 0zm428 352q0 128-3 177-5 116-69 180t-179 69q-50 3-177 3t-177-3q-116-6-180-69T3 677q-3-49-3-177t3-177q5-116 69-180t180-69q49-3 177-3t177 3q116 6 179 69t69 180q3 49 3 177z" fill="currentColor"></path></svg>
+<span class="theme_visuallyhidden">instagram</span>
+</a>
+</li>
+{{- end }}
+{{- if .Settings.BehanceURL }}
+<li class="icon_behance social_icon">
+<a href="{{.Settings.BehanceURL}}" target="_blank" rel="noopener">
+<svg class="social-icon" viewBox="0 -150 1144 1000" xmlns="http://www.w3.org/2000/svg"><path d="M1031 189H746v69h285v-69zM891 427q-51 0-82 29t-34 80h227q-10-109-111-109zm9 326q35 0 68-18t42-48h123q-55 171-238 171-119 0-190-73t-70-194q0-116 72-193t188-77q77 0 134 38t86 100 28 139q0 9-1 26H775q0 62 32 96t93 33zm-745-28h165q114 0 114-93 0-100-111-100H155v193zm0-299h156q44 0 69-21t26-63q0-80-106-80H155v164zM0 142h332q48 0 86 8t71 26 50 54 17 86q0 101-96 147 64 17 96 64t33 114q0 41-14 76t-37 58-55 39-67 24-75 7H0V142z" fill="currentColor"></path></svg>
+<span class="theme_visuallyhidden">behance</span>
+</a>
+</li>
+{{- end }}
+{{- if .Settings.LinkedInURL }}
+<li class="icon_linkedin social_icon">
+<a href="{{.Settings.LinkedInURL}}" target="_blank" rel="noopener">
+<svg class="social-icon" viewBox="-60 -150 1000 1000" xmlns="http://www.w3.org/2000/svg"><path d="M195 349v553H11V349h184zm12-171q0 41-29 68t-75 27h-1q-46 0-74-27T0 178t29-68 75-27 74 27 29 68zm650 407v317H674V606q0-59-23-92t-71-33q-35 0-58 19t-36 48q-6 17-6 45v309H296q1-223 1-361V376l-1-27h184v80h-1q11-18 23-31t31-29 49-24 64-9q95 0 153 63t58 186z" fill="currentColor"></path></svg>
+<span class="theme_visuallyhidden">linkedin</span>
+</a>
+</li>
+{{- end }}
+{{- if .Settings.Copyright }}
+<li class="mobile_nav_copyrights"><span>{{.Settings.Copyright}}</span></li>
+{{- end }}
+</ul>
+</div>
+</nav>
 {{end}}
 
 {{define "gallery_strip"}}

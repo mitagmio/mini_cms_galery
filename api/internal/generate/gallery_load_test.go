@@ -51,6 +51,9 @@ func TestGeneratePanoramaGalleryLoad(t *testing.T) {
 	for _, need := range []string{
 		`class="theme_header`,
 		`class="hide-for-small theme_menu"`,
+		`data-mobile-nav=`,
+		`mobile-nav.js`,
+		`button-mobile-toggler`,
 		`gallery-load.js`,
 		`gallery-load.css`,
 		`gallery-load-mark`,

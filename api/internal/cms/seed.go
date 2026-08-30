@@ -57,7 +57,7 @@ func (s *Store) seedDefaults() error {
 		InstagramURL:  "https://www.instagram.com/d._retoucher/",
 		BehanceURL:    "https://www.behance.net/dariasheianova",
 		LinkedInURL:   "https://www.linkedin.com/in/daria-sheyanova-5a6b212a5/",
-		Copyright:     "Pamela Höhne © All Rights Reserved",
+		Copyright:     "Daria Sheyanova © All Rights Reserved",
 		CanonicalBase: "https://sheyanova.art",
 	})
 	if err != nil {

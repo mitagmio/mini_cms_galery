@@ -23,12 +23,18 @@ var contactFormTmpl = template.Must(template.New("contact_form").Parse(`
 <div class="twocol spacer"></div>
 <div class="eightcol">
 <style>
-.contact_form__status{margin:0 0 14px;min-height:1.2em;font-size:0.95em}
+.contact_form__status{margin:0 0 8px;min-height:0;font-size:0.95em}
 .contact_form__status.is-ok{color:#2a7a3a}
 .contact_form__status.is-err{color:#c00}
 .contact_form.is-busy input[type=submit]{opacity:.6;pointer-events:none}
 .contact_form{position:relative}
 .contact_form_hp{position:absolute;left:-10000px;top:auto;width:1px;height:1px;overflow:hidden}
+@media only screen and (max-width:1100px){
+.contact_form .row.naked>.sixcol{width:100%!important;float:none!important;margin:0 0 8px!important;display:block;clear:both}
+.contact_form .row.naked>.sixcol input{border-right-width:1px}
+.contact_form textarea._4ORMAT_module_contact_input{min-height:5.5rem;max-height:22vh}
+.contact_form form,.contact_form{margin-top:0!important;padding-top:0!important}
+}
 </style>
 <form id="{{.FormID}}" class="email_form contact_form" method="post" action="{{.Action}}" novalidate>
 <div class="error_messages contact_form__status" role="status" aria-live="polite"></div>

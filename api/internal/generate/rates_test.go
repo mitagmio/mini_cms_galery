@@ -59,6 +59,8 @@ func TestGenerateRatesPreviewIncludesDraftPublishOmits(t *testing.T) {
 	for _, need := range []string{
 		`body class="rates rates-page content content_page simple simple_page"`,
 		`class="hide-for-small theme_menu"`,
+		`data-mobile-nav=`,
+		`mobile-nav.js`,
 		`class="rates-banners"`,
 		`class="rate-banner`,
 		`id="fashion"`,
@@ -87,7 +89,7 @@ func TestGenerateRatesPreviewIncludesDraftPublishOmits(t *testing.T) {
 		`rate-retouch__plaque`,
 		`LIGHT / RAW`,
 		`FULL TOUCH UP`,
-		`rates.css?v=22`,
+		`rates.css?v=23`,
 		`--rate-banner-aspect: 3 / 4`,
 		`rates-dialog`,
 		`rates-kicker`,

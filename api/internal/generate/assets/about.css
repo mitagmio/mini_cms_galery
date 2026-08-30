@@ -1,7 +1,37 @@
 /* About — centered column, photo left / bio right. Tokens: #2f2f2f on simple-page bg. */
 
-body.about-page {
+html {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body.about-page,
+body.content_page,
+body.simple_page {
   color: #2f2f2f;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* 960_simple / Format wrappers must not force intrinsic page width past the viewport. */
+body.content_page .page,
+body.simple_page .page,
+body.about-page .page,
+body.content_page .container,
+body.simple_page .container,
+#content_page_wrapper,
+._4ORMAT_content_wrapper,
+._4ORMAT_content_page_container {
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box;
+}
+
+body.content_page img,
+body.simple_page img,
+body.about-page img {
+  max-width: 100%;
+  height: auto;
 }
 
 .about-shell {

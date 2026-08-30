@@ -55,6 +55,8 @@ func TestGenerateAboutTwoColumnHero(t *testing.T) {
 	for _, need := range []string{
 		`body class="about about-page content content_page simple simple_page"`,
 		`class="hide-for-small theme_menu"`,
+		`data-mobile-nav=`,
+		`mobile-nav.js`,
 		`about.css`,
 		`class="about-shell"`,
 		`class="about-hero"`,
