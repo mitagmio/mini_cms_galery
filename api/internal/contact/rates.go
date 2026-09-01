@@ -132,7 +132,7 @@ var profileOpts = []string{"Adobe RGB (1998)", "sRGB Profile", "ProPhoto RGB", "
 var retouchLevels = []string{"1", "2", "3", "4"}
 var retouchLevelLabels = map[string]string{
 	"1": "Light skin retouching that doesn't affect the shadow and age changes to leave your photo as natural as possible",
-	"2": "Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics and texture kept intact",
+	"2": "Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics",
 	"3": "Focus is on the skin retouching: removing all imperfections, smoothing wrinkles, yet saving natural texture",
 	"4": "Retouching of blemishes, scars, improving texture, removing of unwanted wrinkles, adjusting highlights and features",
 }

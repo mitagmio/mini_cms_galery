@@ -315,7 +315,7 @@ func DefaultRetouchImage(value string) string {
 func DefaultRetouchOptions() []FormOption {
 	return []FormOption{
 		{Value: "1", Image: DefaultRetouchImage("1"), Plaque: DefaultRetouchPlaque("1"), Label: "Light skin retouching that doesn't affect the shadow and age changes to leave your photo as natural as possible"},
-		{Value: "2", Image: DefaultRetouchImage("2"), Plaque: DefaultRetouchPlaque("2"), Label: "Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics and texture kept intact"},
+		{Value: "2", Image: DefaultRetouchImage("2"), Plaque: DefaultRetouchPlaque("2"), Label: "Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics"},
 		{Value: "3", Image: DefaultRetouchImage("3"), Plaque: DefaultRetouchPlaque("3"), Label: "Focus is on the skin retouching: removing all imperfections, smoothing wrinkles, yet saving natural texture"},
 		{Value: "4", Image: DefaultRetouchImage("4"), Plaque: DefaultRetouchPlaque("4"), Label: "Retouching of blemishes, scars, improving texture, removing of unwanted wrinkles, adjusting highlights and features"},
 	}

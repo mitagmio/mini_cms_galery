@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build two-frame retouch-level WebP loops from foto.zip (original + one variant).
+"""Build two-frame retouch-level WebP loops (original ↔ retouch variant).
 
-Zip layout: 1.png–4.png are the four retouch stills (light → heavy);
-5.png is the shared archival original used as frame A on every card.
+Supports foto.zip (1.png–4.png + 5.png original) or beauty_portraits.zip
+(01.png–04.png + 05_original.png). Transitions are hard cuts; each state is
+shown for HOLD_MS + FADE_MS * FADE_STEPS (same total timing as legacy fades).
 """
 
 from __future__ import annotations
@@ -12,7 +13,6 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 
-import numpy as np
 from PIL import Image
 
 CANVAS = (480, 640)  # 3:4 portrait
@@ -20,16 +20,25 @@ BG = (246, 241, 241)  # #f6f1f1
 HOLD_MS = 900
 FADE_MS = 90
 FADE_STEPS = 4
+STATE_MS = HOLD_MS + FADE_MS * FADE_STEPS  # legacy fade window kept as hold
 QUALITY = 78
 
-# form level -> zip member
-LEVEL_STILLS = {
-    "1": "1.png",
-    "2": "2.png",
-    "3": "3.png",
-    "4": "4.png",
-}
-ORIGINAL = "5.png"
+ZIP_LAYOUTS: tuple[dict[str, str], ...] = (
+    {
+        "original": "05_original.png",
+        "1": "01.png",
+        "2": "02.png",
+        "3": "03.png",
+        "4": "04.png",
+    },
+    {
+        "original": "5.png",
+        "1": "1.png",
+        "2": "2.png",
+        "3": "3.png",
+        "4": "4.png",
+    },
+)
 
 
 def fit_portrait(im: Image.Image, size: tuple[int, int] = CANVAS) -> Image.Image:
@@ -44,42 +53,31 @@ def fit_portrait(im: Image.Image, size: tuple[int, int] = CANVAS) -> Image.Image
     return canvas
 
 
-def blend(a: Image.Image, b: Image.Image, t: float) -> Image.Image:
-    aa = np.asarray(a, dtype=np.float32)
-    bb = np.asarray(b, dtype=np.float32)
-    out = np.clip(aa * (1.0 - t) + bb * t, 0, 255).astype(np.uint8)
-    return Image.fromarray(out, "RGB")
+def pingpong_hard(orig: Image.Image, variant: Image.Image) -> tuple[list[Image.Image], list[int]]:
+    return [orig, variant], [STATE_MS, STATE_MS]
 
 
-def pingpong(orig: Image.Image, variant: Image.Image) -> tuple[list[Image.Image], list[int]]:
-    frames: list[Image.Image] = [orig]
-    durations: list[int] = [HOLD_MS]
-    for i in range(1, FADE_STEPS + 1):
-        t = i / (FADE_STEPS + 1)
-        frames.append(blend(orig, variant, t))
-        durations.append(FADE_MS)
-    frames.append(variant)
-    durations.append(HOLD_MS)
-    for i in range(1, FADE_STEPS + 1):
-        t = i / (FADE_STEPS + 1)
-        frames.append(blend(variant, orig, t))
-        durations.append(FADE_MS)
-    return frames, durations
+def resolve_layout(names: set[str]) -> dict[str, str] | None:
+    for layout in ZIP_LAYOUTS:
+        if all(name in names for name in layout.values()):
+            return layout
+    return None
 
 
-def load_zip(zip_path: Path) -> dict[str, Image.Image]:
-    out: dict[str, Image.Image] = {}
+def load_zip(zip_path: Path) -> tuple[Image.Image, dict[str, Image.Image]]:
     with zipfile.ZipFile(zip_path) as zf:
         names = {Path(n).name: n for n in zf.namelist() if not n.endswith("/")}
-        needed = [ORIGINAL, *LEVEL_STILLS.values()]
-        missing = [n for n in needed if n not in names]
-        if missing:
-            raise SystemExit(f"zip missing {missing}; have {sorted(names)}")
-        for name in needed:
-            raw = zf.read(names[name])
-            im = Image.open(BytesIO(raw))
-            out[name] = fit_portrait(im)
-    return out
+        layout = resolve_layout(set(names))
+        if layout is None:
+            raise SystemExit(f"zip layout not recognized; have {sorted(names)}")
+
+        def read(key: str) -> Image.Image:
+            raw = zf.read(names[layout[key]])
+            return fit_portrait(Image.open(BytesIO(raw)))
+
+        orig = read("original")
+        levels = {level: read(level) for level in ("1", "2", "3", "4")}
+    return orig, levels
 
 
 def save_webp(path: Path, frames: list[Image.Image], durations: list[int]) -> None:
@@ -98,20 +96,19 @@ def save_webp(path: Path, frames: list[Image.Image], durations: list[int]) -> No
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--zip", default="/root/sheyanova/front-teamplate/foto.zip")
+    ap.add_argument("--zip", default="/root/sheyanova/beauty_portraits.zip")
     ap.add_argument("--out", default="/root/sheyanova/front/assets/theme/rates")
     args = ap.parse_args()
     zip_path = Path(args.zip)
     out_dir = Path(args.out)
     if not zip_path.is_file():
         raise SystemExit(f"zip missing or unreadable: {zip_path}")
-    frames = load_zip(zip_path)
-    orig = frames[ORIGINAL]
-    for level, still in LEVEL_STILLS.items():
-        seq, durs = pingpong(orig, frames[still])
+    orig, levels = load_zip(zip_path)
+    for level, variant in levels.items():
+        seq, durs = pingpong_hard(orig, variant)
         dest = out_dir / f"retouch-level-{level}.webp"
         save_webp(dest, seq, durs)
-        print(f"{dest.name}: {dest.stat().st_size} bytes, {len(seq)} frames")
+        print(f"{dest.name}: {dest.stat().st_size} bytes, {len(seq)} frames, {sum(durs)}ms/cycle")
 
 
 if __name__ == "__main__":
