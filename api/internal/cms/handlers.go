@@ -65,24 +65,30 @@ func settingsForAdmin(st SiteSettings) map[string]any {
 	if ogID == "" {
 		ogID = st.OGImage
 	}
+	metrikaID := strings.TrimSpace(st.YandexMetrikaID)
+	if metrikaID == "" {
+		metrikaID = DefaultYandexMetrikaID
+	}
 	return map[string]any{
-		"site_name":            st.SiteName,
-		"logo_html":            st.LogoHTML,
-		"description":          st.Description,
-		"default_description":  desc,
-		"default_title_suffix": st.DefaultTitleSuffix,
-		"robots":               st.Robots,
-		"og_image":             st.OGImage,
-		"og_image_media_id":    ogID,
-		"favicon_media_id":     st.FaviconMediaID,
-		"instagram_url":        st.InstagramURL,
-		"behance_url":          st.BehanceURL,
-		"linkedin_url":         st.LinkedInURL,
-		"copyright":            st.Copyright,
-		"canonical_base":       st.CanonicalBase,
-		"mailto_address":       st.ContactEmail,
-		"contact_email":        st.ContactEmail,
-		"updated_at":           st.UpdatedAt,
+		"site_name":                st.SiteName,
+		"logo_html":                st.LogoHTML,
+		"description":              st.Description,
+		"default_description":      desc,
+		"default_title_suffix":     st.DefaultTitleSuffix,
+		"robots":                   st.Robots,
+		"og_image":                 st.OGImage,
+		"og_image_media_id":        ogID,
+		"favicon_media_id":         st.FaviconMediaID,
+		"instagram_url":            st.InstagramURL,
+		"behance_url":              st.BehanceURL,
+		"linkedin_url":             st.LinkedInURL,
+		"copyright":                st.Copyright,
+		"canonical_base":           st.CanonicalBase,
+		"mailto_address":           st.ContactEmail,
+		"contact_email":            st.ContactEmail,
+		"yandex_metrika_enabled":   st.YandexMetrikaEnabled,
+		"yandex_metrika_id":        metrikaID,
+		"updated_at":               st.UpdatedAt,
 		"social": map[string]string{
 			"instagram": st.InstagramURL,
 			"behance":   st.BehanceURL,

@@ -51,14 +51,16 @@ func (s *Store) BootSeed() error {
 
 func (s *Store) seedDefaults() error {
 	_, err := s.PutSettings(SiteSettings{
-		SiteName:      "Daria Sheyanova's Portfolio",
-		LogoHTML:      " DARYIA <br/>SHEYANOVA",
-		Description:   "retouch services",
-		InstagramURL:  "https://www.instagram.com/d._retoucher/",
-		BehanceURL:    "https://www.behance.net/dariasheianova",
-		LinkedInURL:   "https://www.linkedin.com/in/daria-sheyanova-5a6b212a5/",
-		Copyright:     "Daria Sheyanova © All Rights Reserved",
-		CanonicalBase: "https://sheyanova.art",
+		SiteName:             "Daria Sheyanova's Portfolio",
+		LogoHTML:             " DARYIA <br/>SHEYANOVA",
+		Description:          "retouch services",
+		InstagramURL:         "https://www.instagram.com/d._retoucher/",
+		BehanceURL:           "https://www.behance.net/dariasheianova",
+		LinkedInURL:          "https://www.linkedin.com/in/daria-sheyanova-5a6b212a5/",
+		Copyright:            "Daria Sheyanova © All Rights Reserved",
+		CanonicalBase:        "https://sheyanova.art",
+		YandexMetrikaEnabled: true,
+		YandexMetrikaID:      DefaultYandexMetrikaID,
 	})
 	if err != nil {
 		return err

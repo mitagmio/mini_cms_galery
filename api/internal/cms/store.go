@@ -13,13 +13,16 @@ var ErrInvalidNav = errors.New("invalid nav")
 
 func (s *Store) GetSettings() (SiteSettings, error) {
 	var st SiteSettings
+	var metrikaEnabled int
 	err := s.db.QueryRow(`
 SELECT site_name, logo_html, description, og_image, instagram_url, behance_url,
-       linkedin_url, copyright, canonical_base, contact_email, updated_at
+       linkedin_url, copyright, canonical_base, contact_email,
+       yandex_metrika_enabled, yandex_metrika_id, updated_at
 FROM site_settings WHERE id = 1`).Scan(
 		&st.SiteName, &st.LogoHTML, &st.Description, &st.OGImage,
 		&st.InstagramURL, &st.BehanceURL, &st.LinkedInURL, &st.Copyright,
-		&st.CanonicalBase, &st.ContactEmail, &st.UpdatedAt,
+		&st.CanonicalBase, &st.ContactEmail,
+		&metrikaEnabled, &st.YandexMetrikaID, &st.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SiteSettings{}, nil
@@ -28,6 +31,10 @@ FROM site_settings WHERE id = 1`).Scan(
 		return SiteSettings{}, err
 	}
 	st.MailtoAddress = st.ContactEmail
+	st.YandexMetrikaEnabled = metrikaEnabled != 0
+	if strings.TrimSpace(st.YandexMetrikaID) == "" {
+		st.YandexMetrikaID = DefaultYandexMetrikaID
+	}
 	return st, nil
 }
 
@@ -36,12 +43,21 @@ func (s *Store) PutSettings(st SiteSettings) (SiteSettings, error) {
 	if st.ContactEmail == "" {
 		st.ContactEmail = strings.TrimSpace(st.MailtoAddress)
 	}
+	st.YandexMetrikaID = strings.TrimSpace(st.YandexMetrikaID)
+	if st.YandexMetrikaID == "" {
+		st.YandexMetrikaID = DefaultYandexMetrikaID
+	}
+	metrikaEnabled := 0
+	if st.YandexMetrikaEnabled {
+		metrikaEnabled = 1
+	}
 	st.UpdatedAt = Now()
 	_, err := s.db.Exec(`
 INSERT INTO site_settings (
   id, site_name, logo_html, description, og_image, instagram_url, behance_url,
-  linkedin_url, copyright, canonical_base, contact_email, updated_at
-) VALUES (1,?,?,?,?,?,?,?,?,?,?,?)
+  linkedin_url, copyright, canonical_base, contact_email,
+  yandex_metrika_enabled, yandex_metrika_id, updated_at
+) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET
   site_name=excluded.site_name,
   logo_html=excluded.logo_html,
@@ -53,9 +69,12 @@ ON CONFLICT(id) DO UPDATE SET
   copyright=excluded.copyright,
   canonical_base=excluded.canonical_base,
   contact_email=excluded.contact_email,
+  yandex_metrika_enabled=excluded.yandex_metrika_enabled,
+  yandex_metrika_id=excluded.yandex_metrika_id,
   updated_at=excluded.updated_at
 `, st.SiteName, st.LogoHTML, st.Description, st.OGImage, st.InstagramURL,
-		st.BehanceURL, st.LinkedInURL, st.Copyright, st.CanonicalBase, st.ContactEmail, st.UpdatedAt)
+		st.BehanceURL, st.LinkedInURL, st.Copyright, st.CanonicalBase, st.ContactEmail,
+		metrikaEnabled, st.YandexMetrikaID, st.UpdatedAt)
 	if err != nil {
 		return SiteSettings{}, err
 	}

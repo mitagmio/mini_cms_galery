@@ -27,6 +27,47 @@ func TestPutGetContactEmail(t *testing.T) {
 	}
 }
 
+func TestPutGetYandexMetrika(t *testing.T) {
+	s := testStore(t)
+	out, err := s.PutSettings(SiteSettings{
+		SiteName:             "Site",
+		YandexMetrikaEnabled: true,
+		YandexMetrikaID:      DefaultYandexMetrikaID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.YandexMetrikaEnabled || out.YandexMetrikaID != DefaultYandexMetrikaID {
+		t.Fatalf("got %+v", out)
+	}
+	out, err = s.PutSettings(SiteSettings{
+		SiteName:             "Site",
+		YandexMetrikaEnabled: false,
+		YandexMetrikaID:      DefaultYandexMetrikaID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.YandexMetrikaEnabled {
+		t.Fatal("expected disabled")
+	}
+	got, err := s.GetSettings()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.YandexMetrikaEnabled || got.YandexMetrikaID != DefaultYandexMetrikaID {
+		t.Fatalf("got %+v", got)
+	}
+	// Empty ID falls back to default on put/get.
+	out, err = s.PutSettings(SiteSettings{SiteName: "Site", YandexMetrikaEnabled: true, YandexMetrikaID: ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.YandexMetrikaID != DefaultYandexMetrikaID {
+		t.Fatalf("default id got %q", out.YandexMetrikaID)
+	}
+}
+
 func TestContactEmailFromMailtoAlias(t *testing.T) {
 	s := testStore(t)
 	out, err := s.PutSettings(SiteSettings{MailtoAddress: "alias@example.com"})

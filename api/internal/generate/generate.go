@@ -591,6 +591,7 @@ func (g *Generator) writePage(p cms.Page) error {
 		"AboutHasPhoto":    hasPhoto,
 		"AboutHasBio":      hasBio,
 		"AboutHeroClass":   aboutHeroClass(hasPhoto, hasBio),
+		"YandexMetrika":    g.metrikaForPage(settings),
 	}
 
 	var buf strings.Builder

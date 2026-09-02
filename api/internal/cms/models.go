@@ -81,6 +81,8 @@ func FormKeyFromTemplateID(id string) string {
 	return ""
 }
 
+const DefaultYandexMetrikaID = "95095785"
+
 type SiteSettings struct {
 	SiteName           string `json:"site_name"`
 	LogoHTML           string `json:"logo_html"`
@@ -98,7 +100,10 @@ type SiteSettings struct {
 	OGImageMediaID     string `json:"og_image_media_id,omitempty"`
 	MailtoAddress      string `json:"mailto_address,omitempty"`
 	ContactEmail       string `json:"contact_email,omitempty"`
-	UpdatedAt          string `json:"updated_at,omitempty"`
+	// YandexMetrikaEnabled toggles the public-site counter (publish only).
+	YandexMetrikaEnabled bool   `json:"yandex_metrika_enabled"`
+	YandexMetrikaID      string `json:"yandex_metrika_id,omitempty"`
+	UpdatedAt            string `json:"updated_at,omitempty"`
 	// Social is admin-friendly nested shape; filled on marshal via SettingsDTO.
 	Social map[string]string `json:"social,omitempty"`
 }

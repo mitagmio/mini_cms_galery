@@ -15,6 +15,8 @@ const EMPTY = {
   favicon_media_id: null,
   og_image_media_id: null,
   contact_email: '',
+  yandex_metrika_enabled: true,
+  yandex_metrika_id: '95095785',
   social: {
     instagram: '',
     behance: '',
@@ -107,7 +109,7 @@ export default function Settings() {
       <header className="page-head">
         <div>
           <h1>Settings</h1>
-          <p className="muted">SEO defaults, favicon, site name, social, contact email</p>
+          <p className="muted">SEO defaults, favicon, site name, social, contact email, analytics</p>
         </div>
       </header>
 
@@ -212,6 +214,30 @@ export default function Settings() {
         <p className="muted">
           Public contact form on sheyanova.art sends messages here. Requires SMTP on the API
           (SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM).
+        </p>
+
+        <h2>Analytics</h2>
+        <label className="field-row">
+          <input
+            type="checkbox"
+            checked={Boolean(settings.yandex_metrika_enabled)}
+            onChange={(e) => patch('yandex_metrika_enabled', e.target.checked)}
+          />
+          <span>Connect Yandex.Metrika counter</span>
+        </label>
+        <label>
+          Counter ID
+          <input
+            value={settings.yandex_metrika_id || ''}
+            onChange={(e) => patch('yandex_metrika_id', e.target.value)}
+            placeholder="95095785"
+            inputMode="numeric"
+            disabled={!settings.yandex_metrika_enabled}
+          />
+        </label>
+        <p className="muted">
+          When enabled, the counter is injected into published pages on sheyanova.art after
+          Publish. Admin preview does not load Metrika. Toggle off and publish again to remove it.
         </p>
 
         <h2>Menu</h2>

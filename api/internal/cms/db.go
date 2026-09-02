@@ -150,6 +150,12 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	if err := s.ensureColumn("site_settings", "contact_email", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return fmt.Errorf("migrate contact_email: %w", err)
 	}
+	if err := s.ensureColumn("site_settings", "yandex_metrika_enabled", "INTEGER NOT NULL DEFAULT 1"); err != nil {
+		return fmt.Errorf("migrate yandex_metrika_enabled: %w", err)
+	}
+	if err := s.ensureColumn("site_settings", "yandex_metrika_id", "TEXT NOT NULL DEFAULT '95095785'"); err != nil {
+		return fmt.Errorf("migrate yandex_metrika_id: %w", err)
+	}
 	if err := s.ensureColumn("pages", "settings_json", "TEXT NOT NULL DEFAULT '{}'"); err != nil {
 		return fmt.Errorf("migrate pages.settings_json: %w", err)
 	}
