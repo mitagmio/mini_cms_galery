@@ -11,12 +11,14 @@ const EMPTY = {
   domain: 'sheyanova.art',
   default_title_suffix: ' — Daria Sheyanova',
   default_description: '',
-  robots: 'index,follow',
+  robots: 'noai, noimageai',
   favicon_media_id: null,
   og_image_media_id: null,
   contact_email: '',
   yandex_metrika_enabled: true,
   yandex_metrika_id: '95095785',
+  gtm_enabled: true,
+  gtm_container_id: 'GTM-K5DWKFDZ',
   social: {
     instagram: '',
     behance: '',
@@ -238,6 +240,27 @@ export default function Settings() {
         <p className="muted">
           When enabled, the counter is injected into published pages on sheyanova.art after
           Publish. Admin preview does not load Metrika. Toggle off and publish again to remove it.
+        </p>
+        <label className="field-row">
+          <input
+            type="checkbox"
+            checked={Boolean(settings.gtm_enabled)}
+            onChange={(e) => patch('gtm_enabled', e.target.checked)}
+          />
+          <span>Connect Google Tag Manager</span>
+        </label>
+        <label>
+          Container ID
+          <input
+            value={settings.gtm_container_id || ''}
+            onChange={(e) => patch('gtm_container_id', e.target.value)}
+            placeholder="GTM-K5DWKFDZ"
+            disabled={!settings.gtm_enabled}
+          />
+        </label>
+        <p className="muted">
+          When enabled, GTM head + body snippets are injected on published pages only (not admin
+          preview). Default container: GTM-K5DWKFDZ.
         </p>
 
         <h2>Menu</h2>

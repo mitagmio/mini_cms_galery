@@ -13,16 +13,20 @@ var ErrInvalidNav = errors.New("invalid nav")
 
 func (s *Store) GetSettings() (SiteSettings, error) {
 	var st SiteSettings
-	var metrikaEnabled int
+	var metrikaEnabled, gtmEnabled int
 	err := s.db.QueryRow(`
 SELECT site_name, logo_html, description, og_image, instagram_url, behance_url,
        linkedin_url, copyright, canonical_base, contact_email,
-       yandex_metrika_enabled, yandex_metrika_id, updated_at
+       yandex_metrika_enabled, yandex_metrika_id, updated_at,
+       favicon_media_id, default_title_suffix, robots, default_keywords,
+       gtm_enabled, gtm_container_id
 FROM site_settings WHERE id = 1`).Scan(
 		&st.SiteName, &st.LogoHTML, &st.Description, &st.OGImage,
 		&st.InstagramURL, &st.BehanceURL, &st.LinkedInURL, &st.Copyright,
 		&st.CanonicalBase, &st.ContactEmail,
 		&metrikaEnabled, &st.YandexMetrikaID, &st.UpdatedAt,
+		&st.FaviconMediaID, &st.DefaultTitleSuffix, &st.Robots, &st.DefaultKeywords,
+		&gtmEnabled, &st.GTMContainerID,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return SiteSettings{}, nil
@@ -31,9 +35,15 @@ FROM site_settings WHERE id = 1`).Scan(
 		return SiteSettings{}, err
 	}
 	st.MailtoAddress = st.ContactEmail
+	st.OGImageMediaID = st.OGImage
+	st.DefaultDescription = st.Description
 	st.YandexMetrikaEnabled = metrikaEnabled != 0
 	if strings.TrimSpace(st.YandexMetrikaID) == "" {
 		st.YandexMetrikaID = DefaultYandexMetrikaID
+	}
+	st.GTMEnabled = gtmEnabled != 0
+	if strings.TrimSpace(st.GTMContainerID) == "" {
+		st.GTMContainerID = DefaultGTMContainerID
 	}
 	return st, nil
 }
@@ -43,21 +53,37 @@ func (s *Store) PutSettings(st SiteSettings) (SiteSettings, error) {
 	if st.ContactEmail == "" {
 		st.ContactEmail = strings.TrimSpace(st.MailtoAddress)
 	}
+	if st.OGImageMediaID != "" {
+		st.OGImage = st.OGImageMediaID
+	}
+	if st.DefaultDescription != "" {
+		st.Description = st.DefaultDescription
+	}
 	st.YandexMetrikaID = strings.TrimSpace(st.YandexMetrikaID)
 	if st.YandexMetrikaID == "" {
 		st.YandexMetrikaID = DefaultYandexMetrikaID
 	}
+	st.GTMContainerID = strings.TrimSpace(st.GTMContainerID)
+	if st.GTMContainerID == "" {
+		st.GTMContainerID = DefaultGTMContainerID
+	}
 	metrikaEnabled := 0
 	if st.YandexMetrikaEnabled {
 		metrikaEnabled = 1
+	}
+	gtmEnabled := 0
+	if st.GTMEnabled {
+		gtmEnabled = 1
 	}
 	st.UpdatedAt = Now()
 	_, err := s.db.Exec(`
 INSERT INTO site_settings (
   id, site_name, logo_html, description, og_image, instagram_url, behance_url,
   linkedin_url, copyright, canonical_base, contact_email,
-  yandex_metrika_enabled, yandex_metrika_id, updated_at
-) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  yandex_metrika_enabled, yandex_metrika_id, updated_at,
+  favicon_media_id, default_title_suffix, robots, default_keywords,
+  gtm_enabled, gtm_container_id
+) VALUES (1,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 ON CONFLICT(id) DO UPDATE SET
   site_name=excluded.site_name,
   logo_html=excluded.logo_html,
@@ -71,10 +97,18 @@ ON CONFLICT(id) DO UPDATE SET
   contact_email=excluded.contact_email,
   yandex_metrika_enabled=excluded.yandex_metrika_enabled,
   yandex_metrika_id=excluded.yandex_metrika_id,
-  updated_at=excluded.updated_at
+  updated_at=excluded.updated_at,
+  favicon_media_id=excluded.favicon_media_id,
+  default_title_suffix=excluded.default_title_suffix,
+  robots=excluded.robots,
+  default_keywords=excluded.default_keywords,
+  gtm_enabled=excluded.gtm_enabled,
+  gtm_container_id=excluded.gtm_container_id
 `, st.SiteName, st.LogoHTML, st.Description, st.OGImage, st.InstagramURL,
 		st.BehanceURL, st.LinkedInURL, st.Copyright, st.CanonicalBase, st.ContactEmail,
-		metrikaEnabled, st.YandexMetrikaID, st.UpdatedAt)
+		metrikaEnabled, st.YandexMetrikaID, st.UpdatedAt,
+		st.FaviconMediaID, st.DefaultTitleSuffix, st.Robots, st.DefaultKeywords,
+		gtmEnabled, st.GTMContainerID)
 	if err != nil {
 		return SiteSettings{}, err
 	}
@@ -145,7 +179,8 @@ func (s *Store) firstContactMailto() (string, error) {
 }
 
 const pageSelectCols = `id, slug, title, theme, status, sort_order, meta_title, meta_description,
-       canonical_path, og_image, is_homepage, settings_json, created_at, updated_at`
+       meta_keywords, canonical_path, og_title, og_description, og_type, og_image,
+       is_homepage, settings_json, created_at, updated_at`
 
 func (s *Store) ListPages() ([]Page, error) {
 	rows, err := s.db.Query(`
@@ -193,7 +228,8 @@ func scanPage(scanner interface {
 	var settings string
 	if err := scanner.Scan(
 		&p.ID, &p.Slug, &p.Title, &p.Theme, &p.Status, &p.SortOrder,
-		&p.MetaTitle, &p.MetaDescription, &p.CanonicalPath, &p.OGImage, &home, &settings,
+		&p.MetaTitle, &p.MetaDescription, &p.MetaKeywords, &p.CanonicalPath,
+		&p.OGTitle, &p.OGDescription, &p.OGType, &p.OGImage, &home, &settings,
 		&p.CreatedAt, &p.UpdatedAt,
 	); err != nil {
 		return Page{}, err
@@ -238,9 +274,9 @@ func (s *Store) CreatePage(p Page) (Page, error) {
 		}
 	}
 	_, err := s.db.Exec(`
-INSERT INTO pages (id, slug, title, theme, status, sort_order, meta_title, meta_description, canonical_path, og_image, is_homepage, settings_json, created_at, updated_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-		p.ID, p.Slug, p.Title, p.Theme, p.Status, p.SortOrder, p.MetaTitle, p.MetaDescription, p.CanonicalPath, p.OGImage, home, string(p.Settings), p.CreatedAt, p.UpdatedAt)
+INSERT INTO pages (id, slug, title, theme, status, sort_order, meta_title, meta_description, meta_keywords, canonical_path, og_title, og_description, og_type, og_image, is_homepage, settings_json, created_at, updated_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		p.ID, p.Slug, p.Title, p.Theme, p.Status, p.SortOrder, p.MetaTitle, p.MetaDescription, p.MetaKeywords, p.CanonicalPath, p.OGTitle, p.OGDescription, p.OGType, p.OGImage, home, string(p.Settings), p.CreatedAt, p.UpdatedAt)
 	if err != nil {
 		return Page{}, err
 	}
@@ -282,8 +318,20 @@ func (s *Store) PatchPage(id string, patch map[string]any) (Page, error) {
 	if v, ok := patch["meta_description"].(string); ok {
 		cur.MetaDescription = v
 	}
+	if v, ok := patch["meta_keywords"].(string); ok {
+		cur.MetaKeywords = v
+	}
 	if v, ok := patch["canonical_path"].(string); ok {
 		cur.CanonicalPath = v
+	}
+	if v, ok := patch["og_title"].(string); ok {
+		cur.OGTitle = v
+	}
+	if v, ok := patch["og_description"].(string); ok {
+		cur.OGDescription = v
+	}
+	if v, ok := patch["og_type"].(string); ok {
+		cur.OGType = v
 	}
 	if v, ok := patch["og_image"].(string); ok {
 		cur.OGImage = v
@@ -313,9 +361,11 @@ func (s *Store) PatchPage(id string, patch map[string]any) (Page, error) {
 	}
 	_, err = s.db.Exec(`
 UPDATE pages SET slug=?, title=?, theme=?, status=?, sort_order=?, meta_title=?, meta_description=?,
-  canonical_path=?, og_image=?, is_homepage=?, settings_json=?, updated_at=? WHERE id=?`,
+  meta_keywords=?, canonical_path=?, og_title=?, og_description=?, og_type=?,
+  og_image=?, is_homepage=?, settings_json=?, updated_at=? WHERE id=?`,
 		cur.Slug, cur.Title, cur.Theme, cur.Status, cur.SortOrder, cur.MetaTitle, cur.MetaDescription,
-		cur.CanonicalPath, cur.OGImage, home, string(cur.Settings), cur.UpdatedAt, id)
+		cur.MetaKeywords, cur.CanonicalPath, cur.OGTitle, cur.OGDescription, cur.OGType,
+		cur.OGImage, home, string(cur.Settings), cur.UpdatedAt, id)
 	if err != nil {
 		return Page{}, err
 	}
@@ -571,12 +621,12 @@ func (s *Store) ListMediaFiltered(kind, q string, ids []string, limit int) ([]Me
 			args[i] = id
 		}
 		query := `
-SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at
+SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, caption, kind, mime, size_bytes, created_at, updated_at
 FROM media WHERE id IN (` + strings.Join(placeholders, ",") + `) ORDER BY created_at DESC`
 		rows, err = s.db.Query(query, args...)
 	} else {
 		rows, err = s.db.Query(`
-SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at
+SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, caption, kind, mime, size_bytes, created_at, updated_at
 FROM media ORDER BY created_at DESC`)
 	}
 	if err != nil {
@@ -588,14 +638,14 @@ FROM media ORDER BY created_at DESC`)
 	for rows.Next() {
 		var m Media
 		if err := rows.Scan(&m.ID, &m.Filename, &m.OriginalName, &m.URL, &m.ThumbFilename, &m.ThumbURL,
-			&m.Title, &m.Alt, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt); err != nil {
+			&m.Title, &m.Alt, &m.Caption, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt); err != nil {
 			return nil, 0, err
 		}
 		if kind != "" && m.Kind != kind {
 			continue
 		}
 		if q != "" {
-			hay := strings.ToLower(m.Title + " " + m.OriginalName + " " + m.Filename + " " + m.Alt)
+			hay := strings.ToLower(m.Title + " " + m.OriginalName + " " + m.Filename + " " + m.Alt + " " + m.Caption)
 			if !strings.Contains(hay, q) {
 				continue
 			}
@@ -615,10 +665,10 @@ FROM media ORDER BY created_at DESC`)
 func (s *Store) GetMedia(id string) (Media, error) {
 	var m Media
 	err := s.db.QueryRow(`
-SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at
+SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, caption, kind, mime, size_bytes, created_at, updated_at
 FROM media WHERE id = ?`, id).Scan(
 		&m.ID, &m.Filename, &m.OriginalName, &m.URL, &m.ThumbFilename, &m.ThumbURL,
-		&m.Title, &m.Alt, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt,
+		&m.Title, &m.Alt, &m.Caption, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Media{}, ErrNotFound
@@ -635,12 +685,12 @@ func (s *Store) GetMediaByFilename(filename string) (Media, error) {
 	}
 	var m Media
 	err := s.db.QueryRow(`
-SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at
+SELECT id, filename, original_name, url, thumb_filename, thumb_url, title, alt, caption, kind, mime, size_bytes, created_at, updated_at
 FROM media WHERE filename = ? OR original_name = ?
 ORDER BY CASE WHEN filename = ? THEN 0 ELSE 1 END
 LIMIT 1`, filename, filename, filename).Scan(
 		&m.ID, &m.Filename, &m.OriginalName, &m.URL, &m.ThumbFilename, &m.ThumbURL,
-		&m.Title, &m.Alt, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt,
+		&m.Title, &m.Alt, &m.Caption, &m.Kind, &m.Mime, &m.SizeBytes, &m.CreatedAt, &m.UpdatedAt,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Media{}, ErrNotFound
@@ -656,17 +706,17 @@ func (s *Store) CreateMedia(m Media) (Media, error) {
 	m.CreatedAt = now
 	m.UpdatedAt = now
 	_, err := s.db.Exec(`
-INSERT INTO media (id, filename, original_name, url, thumb_filename, thumb_url, title, alt, kind, mime, size_bytes, created_at, updated_at)
-VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+INSERT INTO media (id, filename, original_name, url, thumb_filename, thumb_url, title, alt, caption, kind, mime, size_bytes, created_at, updated_at)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		m.ID, m.Filename, m.OriginalName, m.URL, m.ThumbFilename, m.ThumbURL,
-		m.Title, m.Alt, m.Kind, m.Mime, m.SizeBytes, m.CreatedAt, m.UpdatedAt)
+		m.Title, m.Alt, m.Caption, m.Kind, m.Mime, m.SizeBytes, m.CreatedAt, m.UpdatedAt)
 	if err != nil {
 		return Media{}, err
 	}
 	return s.GetMedia(m.ID)
 }
 
-func (s *Store) PatchMedia(id string, title, alt, kind *string) (Media, error) {
+func (s *Store) PatchMedia(id string, title, alt, caption, kind *string) (Media, error) {
 	cur, err := s.GetMedia(id)
 	if err != nil {
 		return Media{}, err
@@ -677,12 +727,15 @@ func (s *Store) PatchMedia(id string, title, alt, kind *string) (Media, error) {
 	if alt != nil {
 		cur.Alt = *alt
 	}
+	if caption != nil {
+		cur.Caption = *caption
+	}
 	if kind != nil {
 		cur.Kind = *kind
 	}
 	cur.UpdatedAt = Now()
-	_, err = s.db.Exec(`UPDATE media SET title=?, alt=?, kind=?, updated_at=? WHERE id=?`,
-		cur.Title, cur.Alt, cur.Kind, cur.UpdatedAt, id)
+	_, err = s.db.Exec(`UPDATE media SET title=?, alt=?, caption=?, kind=?, updated_at=? WHERE id=?`,
+		cur.Title, cur.Alt, cur.Caption, cur.Kind, cur.UpdatedAt, id)
 	if err != nil {
 		return Media{}, err
 	}

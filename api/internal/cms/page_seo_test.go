@@ -8,6 +8,7 @@ func TestFlattenSEOPatchDoesNotOverwriteTitle(t *testing.T) {
 		"seo": map[string]any{
 			"meta_title":       "Custom SEO",
 			"meta_description": "Desc",
+			"keywords":         "beauty retoucher, Daria Sheyanova",
 			"canonical_path":   "/editorial-i",
 		},
 	}
@@ -20,6 +21,9 @@ func TestFlattenSEOPatchDoesNotOverwriteTitle(t *testing.T) {
 	}
 	if patch["meta_description"] != "Desc" {
 		t.Fatalf("meta_description=%v", patch["meta_description"])
+	}
+	if patch["meta_keywords"] != "beauty retoucher, Daria Sheyanova" {
+		t.Fatalf("meta_keywords=%v", patch["meta_keywords"])
 	}
 	if patch["canonical_path"] != "/editorial-i" {
 		t.Fatalf("canonical_path=%v", patch["canonical_path"])

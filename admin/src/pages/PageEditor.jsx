@@ -579,11 +579,46 @@ export default function PageEditor() {
                 />
               </label>
               <label>
+                Keywords
+                <textarea
+                  rows={2}
+                  value={page.seo?.meta_keywords ?? ''}
+                  onChange={(e) => updateSeo({ meta_keywords: e.target.value })}
+                  placeholder="Comma-separated, e.g. beauty retoucher, fashion retoucher"
+                />
+              </label>
+              <label>
                 Canonical path
                 <input
                   value={page.seo?.canonical_path ?? ''}
                   onChange={(e) => updateSeo({ canonical_path: e.target.value })}
-                  placeholder={`/${page.slug || ''}`}
+                  placeholder={`/${page.slug || ''}/`}
+                />
+              </label>
+              <hr />
+              <p className="muted">Open Graph (sharing). Empty fields fall back to title/description/default OG image.</p>
+              <label>
+                OG title
+                <input
+                  value={page.seo?.og_title ?? ''}
+                  onChange={(e) => updateSeo({ og_title: e.target.value })}
+                  placeholder="Shorter than meta title"
+                />
+              </label>
+              <label>
+                OG description
+                <textarea
+                  rows={2}
+                  value={page.seo?.og_description ?? ''}
+                  onChange={(e) => updateSeo({ og_description: e.target.value })}
+                />
+              </label>
+              <label>
+                OG type
+                <input
+                  value={page.seo?.og_type ?? ''}
+                  onChange={(e) => updateSeo({ og_type: e.target.value })}
+                  placeholder="website"
                 />
               </label>
               <div className="field-row">
@@ -654,7 +689,7 @@ export default function PageEditor() {
               const list = Array.isArray(pick) ? pick : [pick]
               const extras = list.map((m) => {
                 const b = newBlock('gallery_image')
-                b.data = { media_id: m.id, alt: m.title || '', caption: '' }
+                b.data = { media_id: m.id, alt: m.alt || m.title || '', caption: m.caption || '' }
                 return b
               })
               setBlocks((prev) => {
@@ -682,7 +717,11 @@ function hydrateSeo(p) {
   return {
     meta_title: seo.meta_title ?? p?.meta_title ?? '',
     meta_description: seo.meta_description ?? p?.meta_description ?? '',
+    meta_keywords: seo.meta_keywords ?? seo.keywords ?? p?.meta_keywords ?? '',
     canonical_path: seo.canonical_path ?? p?.canonical_path ?? '',
+    og_title: seo.og_title ?? p?.og_title ?? '',
+    og_description: seo.og_description ?? p?.og_description ?? '',
+    og_type: seo.og_type ?? p?.og_type ?? '',
     og_image_media_id: seo.og_image_media_id || p?.og_image || '',
   }
 }
@@ -947,6 +986,28 @@ function BlockInspector({
         <label>
           Caption
           <input value={d.caption || ''} onChange={(e) => onChange({ caption: e.target.value })} />
+        </label>
+        <label>
+          Alt (both images)
+          <input
+            value={d.alt || ''}
+            onChange={(e) => onChange({ alt: e.target.value })}
+            placeholder="Before & after beauty retouching"
+          />
+        </label>
+        <label>
+          Before alt
+          <input
+            value={d.before_alt || ''}
+            onChange={(e) => onChange({ before_alt: e.target.value })}
+          />
+        </label>
+        <label>
+          After alt
+          <input
+            value={d.after_alt || ''}
+            onChange={(e) => onChange({ after_alt: e.target.value })}
+          />
         </label>
         <button type="button" className="secondary danger" onClick={onDelete}>
           Delete block

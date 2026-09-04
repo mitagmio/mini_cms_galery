@@ -27,6 +27,39 @@ func TestPutGetContactEmail(t *testing.T) {
 	}
 }
 
+func TestPutGetGTM(t *testing.T) {
+	s := testStore(t)
+	out, err := s.PutSettings(SiteSettings{
+		SiteName:       "Site",
+		GTMEnabled:     true,
+		GTMContainerID: DefaultGTMContainerID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !out.GTMEnabled || out.GTMContainerID != DefaultGTMContainerID {
+		t.Fatalf("got %+v", out)
+	}
+	out, err = s.PutSettings(SiteSettings{
+		SiteName:       "Site",
+		GTMEnabled:     false,
+		GTMContainerID: DefaultGTMContainerID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.GTMEnabled {
+		t.Fatal("expected disabled")
+	}
+	out, err = s.PutSettings(SiteSettings{SiteName: "Site", GTMEnabled: true, GTMContainerID: ""})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.GTMContainerID != DefaultGTMContainerID {
+		t.Fatalf("default id got %q", out.GTMContainerID)
+	}
+}
+
 func TestPutGetYandexMetrika(t *testing.T) {
 	s := testStore(t)
 	out, err := s.PutSettings(SiteSettings{

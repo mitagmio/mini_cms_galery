@@ -156,6 +156,24 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	if err := s.ensureColumn("site_settings", "yandex_metrika_id", "TEXT NOT NULL DEFAULT '95095785'"); err != nil {
 		return fmt.Errorf("migrate yandex_metrika_id: %w", err)
 	}
+	if err := s.ensureColumn("site_settings", "favicon_media_id", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate favicon_media_id: %w", err)
+	}
+	if err := s.ensureColumn("site_settings", "default_title_suffix", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate default_title_suffix: %w", err)
+	}
+	if err := s.ensureColumn("site_settings", "robots", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate robots: %w", err)
+	}
+	if err := s.ensureColumn("site_settings", "default_keywords", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate default_keywords: %w", err)
+	}
+	if err := s.ensureColumn("site_settings", "gtm_enabled", "INTEGER NOT NULL DEFAULT 1"); err != nil {
+		return fmt.Errorf("migrate gtm_enabled: %w", err)
+	}
+	if err := s.ensureColumn("site_settings", "gtm_container_id", "TEXT NOT NULL DEFAULT 'GTM-K5DWKFDZ'"); err != nil {
+		return fmt.Errorf("migrate gtm_container_id: %w", err)
+	}
 	if err := s.ensureColumn("pages", "settings_json", "TEXT NOT NULL DEFAULT '{}'"); err != nil {
 		return fmt.Errorf("migrate pages.settings_json: %w", err)
 	}
@@ -164,6 +182,18 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	}
 	if err := s.ensureColumn("pages", "canonical_path", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return fmt.Errorf("migrate pages.canonical_path: %w", err)
+	}
+	if err := s.ensureColumn("pages", "meta_keywords", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate pages.meta_keywords: %w", err)
+	}
+	if err := s.ensureColumn("pages", "og_title", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate pages.og_title: %w", err)
+	}
+	if err := s.ensureColumn("pages", "og_description", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate pages.og_description: %w", err)
+	}
+	if err := s.ensureColumn("pages", "og_type", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate pages.og_type: %w", err)
 	}
 	if err := s.BackfillContactEmail(); err != nil {
 		return fmt.Errorf("migrate backfill contact_email: %w", err)
@@ -182,6 +212,9 @@ CREATE INDEX IF NOT EXISTS idx_templates_sort ON templates(sort_order);
 	}
 	if err := s.ensureColumn("media", "thumb_url", "TEXT NOT NULL DEFAULT ''"); err != nil {
 		return fmt.Errorf("migrate media.thumb_url: %w", err)
+	}
+	if err := s.ensureColumn("media", "caption", "TEXT NOT NULL DEFAULT ''"); err != nil {
+		return fmt.Errorf("migrate media.caption: %w", err)
 	}
 	return nil
 }

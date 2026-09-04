@@ -3,11 +3,10 @@
 <html lang="en" class="gallery win">
 <head>
 <meta charset="utf-8"/>
+{{.GTMHead}}
 <meta content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width" name="viewport"/>
 <title>{{.HTMLTitle}} - {{.Settings.SiteName}}</title>
-<meta name="description" content="{{.MetaDescription}}"/>
-<meta content="noai, noimageai" name="robots"/>
-<link rel="canonical" href="{{.CanonicalURL}}"/>
+{{template "seo_meta" .}}
 <link href="/assets/theme/panorama/stylesheets/jquery.scrollpane.css" media="screen" rel="stylesheet"/>
 <link href="/static/theme_api/v1/hosted_fonts-58e499298cb6db37c90c2bd6bd2ad287c8423ad12d9c2cc346a2af9afc8b7fd4.css" media="screen" rel="stylesheet"/>
 <link href="/static/theme_api/vendor/webtype_fonts.min-a27384810945198dd373502796bfbada62cc8409c49831a8778ac894e78f7749.css" media="screen" rel="stylesheet"/>
@@ -19,6 +18,7 @@
 <noscript><style>.gallery_content .asset img{opacity:1!important}.gallery-load-mark{display:none!important}</style></noscript>
 </head>
 <body class="gallery gallery_page">
+{{.GTMBody}}
 <div class="page clearfix">
 <div class="theme_header static clearfix" id="themeHeader">
 <div class="padding-div">
@@ -30,6 +30,7 @@
 </div>
 <div id="content">
 <div class="gallery_content">
+{{template "page_heading" .}}
 {{template "gallery_strip" .}}
 </div>
 </div>

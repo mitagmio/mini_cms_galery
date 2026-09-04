@@ -69,12 +69,17 @@ func settingsForAdmin(st SiteSettings) map[string]any {
 	if metrikaID == "" {
 		metrikaID = DefaultYandexMetrikaID
 	}
+	gtmID := strings.TrimSpace(st.GTMContainerID)
+	if gtmID == "" {
+		gtmID = DefaultGTMContainerID
+	}
 	return map[string]any{
 		"site_name":                st.SiteName,
 		"logo_html":                st.LogoHTML,
 		"description":              st.Description,
 		"default_description":      desc,
 		"default_title_suffix":     st.DefaultTitleSuffix,
+		"default_keywords":         st.DefaultKeywords,
 		"robots":                   st.Robots,
 		"og_image":                 st.OGImage,
 		"og_image_media_id":        ogID,
@@ -88,6 +93,8 @@ func settingsForAdmin(st SiteSettings) map[string]any {
 		"contact_email":            st.ContactEmail,
 		"yandex_metrika_enabled":   st.YandexMetrikaEnabled,
 		"yandex_metrika_id":        metrikaID,
+		"gtm_enabled":              st.GTMEnabled,
+		"gtm_container_id":         gtmID,
 		"updated_at":               st.UpdatedAt,
 		"social": map[string]string{
 			"instagram": st.InstagramURL,
@@ -504,15 +511,16 @@ func (h *Handler) MediaByID(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteJSON(w, http.StatusOK, map[string]any{"ok": true, "media": m})
 	case http.MethodPatch:
 		var body struct {
-			Title *string `json:"title"`
-			Alt   *string `json:"alt"`
-			Kind  *string `json:"kind"`
+			Title   *string `json:"title"`
+			Alt     *string `json:"alt"`
+			Caption *string `json:"caption"`
+			Kind    *string `json:"kind"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			httpx.WriteError(w, http.StatusBadRequest, "bad json")
 			return
 		}
-		m, err := h.Store.PatchMedia(id, body.Title, body.Alt, body.Kind)
+		m, err := h.Store.PatchMedia(id, body.Title, body.Alt, body.Caption, body.Kind)
 		if err != nil {
 			if errors.Is(err, ErrNotFound) {
 				httpx.WriteError(w, http.StatusNotFound, "not found")
@@ -586,6 +594,7 @@ func (h *Handler) uploadMedia(w http.ResponseWriter, r *http.Request) {
 		URL:          "/media/" + name,
 		Title:        r.FormValue("title"),
 		Alt:          r.FormValue("alt"),
+		Caption:      r.FormValue("caption"),
 		Kind:         r.FormValue("kind"),
 		Mime:         hdr.Header.Get("Content-Type"),
 		SizeBytes:    n,

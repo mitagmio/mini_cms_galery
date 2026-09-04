@@ -104,6 +104,36 @@
 </nav>
 {{end}}
 
+{{define "seo_meta"}}
+<meta name="description" content="{{.MetaDescription}}"/>
+{{- if .MetaKeywords}}
+<meta name="keywords" content="{{.MetaKeywords}}"/>
+{{- end}}
+<meta content="{{.Robots}}" name="robots"/>
+<link rel="canonical" href="{{.CanonicalURL}}"/>
+{{.FaviconHTML -}}
+<meta property="og:title" content="{{.OGTitle}}"/>
+<meta property="og:description" content="{{.OGDescription}}"/>
+<meta property="og:type" content="{{.OGType}}"/>
+<meta property="og:url" content="{{.OGURL}}"/>
+{{- if .OGImage}}
+<meta property="og:image" content="{{.OGImage}}"/>
+{{- end}}
+<meta property="og:site_name" content="{{.OGSiteName}}"/>
+<meta name="twitter:card" content="{{.TwitterCard}}"/>
+<meta name="twitter:title" content="{{.OGTitle}}"/>
+<meta name="twitter:description" content="{{.OGDescription}}"/>
+{{- if .OGImage}}
+<meta name="twitter:image" content="{{.OGImage}}"/>
+{{- end}}
+{{end}}
+
+{{define "page_heading"}}
+{{- if .ShowPageHeading}}
+<h2 class="theme_visuallyhidden">{{.PageHeading}}</h2>
+{{- end}}
+{{end}}
+
 {{define "yandex_metrika"}}{{.YandexMetrika}}{{end}}
 
 {{define "gallery_strip"}}

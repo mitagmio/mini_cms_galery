@@ -110,6 +110,13 @@ func (g *Generator) GenerateSite() error {
 		}
 		emitted = append(emitted, full)
 	}
+	settings, err := g.Store.GetSettings()
+	if err != nil {
+		return err
+	}
+	if err := g.writeRobotsAndSitemap(emitted, settings); err != nil {
+		return err
+	}
 	return g.pruneObsoletePageDirs(emitted)
 }
 
@@ -474,23 +481,7 @@ func (g *Generator) navLinkAllowed(it cms.NavItem) bool {
 }
 
 func pageCanonicalURL(p cms.Page, canonBase string) string {
-	path := strings.TrimSpace(p.CanonicalPath)
-	if path == "" && p.SEO != nil {
-		path = strings.TrimSpace(p.SEO.CanonicalPath)
-	}
-	if path != "" {
-		if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-			return path
-		}
-		if !strings.HasPrefix(path, "/") {
-			path = "/" + path
-		}
-		return canonBase + path
-	}
-	if p.IsHomepage {
-		return canonBase + "/"
-	}
-	return canonBase + "/" + strings.Trim(p.Slug, "/")
+	return normalizeCanonicalURL(pageCanonicalPath(p), canonBase)
 }
 
 func (g *Generator) writePage(p cms.Page) error {
@@ -561,6 +552,9 @@ func (g *Generator) writePage(p cms.Page) error {
 	hasPhoto := strings.TrimSpace(string(portrait)) != ""
 	hasBio := strings.TrimSpace(string(bio)) != ""
 
+	seo := g.buildPageSEO(p, settings, canonBase, canon, htmlTitle, meta)
+	gtmHead, gtmBody := g.gtmForPage(settings)
+
 	view := map[string]any{
 		"Page": p,
 		"Settings": map[string]any{
@@ -577,8 +571,22 @@ func (g *Generator) writePage(p cms.Page) error {
 		"ActiveSlug":       active,
 		"ActiveHref":       activeHref,
 		"MetaDescription":  meta,
+		"MetaKeywords":     seo.Keywords,
 		"CanonicalURL":     canon,
 		"HTMLTitle":        htmlTitle,
+		"Robots":           seo.Robots,
+		"OGTitle":          seo.OGTitle,
+		"OGDescription":    seo.OGDescription,
+		"OGType":           seo.OGType,
+		"OGURL":            seo.OGURL,
+		"OGImage":          seo.OGImage,
+		"OGSiteName":       seo.OGSiteName,
+		"TwitterCard":      seo.TwitterCard,
+		"FaviconHTML":      seo.FaviconHTML,
+		"PageHeading":      seo.PageHeading,
+		"ShowPageHeading":  seo.ShowPageHeading,
+		"GTMHead":          gtmHead,
+		"GTMBody":          gtmBody,
 		"RenderedBlocks":   blocks,
 		"FormatData":       formatData,
 		"ShuffleSeed":      shuffleSeed,
@@ -726,20 +734,44 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 			if dim == "" {
 				dim = imgDimensionAttrs(g.probeMediaSize(afterID, afterURL))
 			}
+			altShared, _ := data["alt"].(string)
+			beforeAlt, _ := data["before_alt"].(string)
+			afterAlt, _ := data["after_alt"].(string)
+			if strings.TrimSpace(beforeAlt) == "" {
+				beforeAlt = altShared
+			}
+			if strings.TrimSpace(afterAlt) == "" {
+				afterAlt = altShared
+			}
+			if strings.TrimSpace(beforeAlt) == "" {
+				if m, ok := lookupMedia(beforeID, ""); ok {
+					beforeAlt = firstNonEmpty(m.Alt, m.Title, m.Caption)
+				}
+			}
+			if strings.TrimSpace(afterAlt) == "" {
+				if m, ok := lookupMedia(afterID, ""); ok {
+					afterAlt = firstNonEmpty(m.Alt, m.Title, m.Caption)
+				}
+			}
+			caption, _ := data["caption"].(string)
+			capHTML := `<div class="comparison_slider__copy_wrap"></div>`
+			if strings.TrimSpace(caption) != "" {
+				capHTML = fmt.Sprintf(`<div class="comparison_slider__copy_wrap"><p class="ba-caption">%s</p></div>`, template.HTMLEscapeString(caption))
+			}
 			var afterTag, beforeTag string
 			if firstComparison {
 				cls += " ba-first"
-				afterTag = fmt.Sprintf(`<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--2" decoding="async" loading="eager" fetchpriority="high" src="%s" data-src="%s"%s/>`, afterSrc, afterSrc, dim)
-				beforeTag = fmt.Sprintf(`<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--1" decoding="async" loading="eager" fetchpriority="high" src="%s" data-src="%s"%s/>`, beforeSrc, beforeSrc, dim)
+				afterTag = fmt.Sprintf(`<img alt="%s" class="comparison_slider__slider_image comparison_slider__slider_image--2" decoding="async" loading="eager" fetchpriority="high" src="%s" data-src="%s"%s/>`, template.HTMLEscapeString(afterAlt), afterSrc, afterSrc, dim)
+				beforeTag = fmt.Sprintf(`<img alt="%s" class="comparison_slider__slider_image comparison_slider__slider_image--1" decoding="async" loading="eager" fetchpriority="high" src="%s" data-src="%s"%s/>`, template.HTMLEscapeString(beforeAlt), beforeSrc, beforeSrc, dim)
 				firstComparison = false
 			} else {
-				afterTag = fmt.Sprintf(`<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--2" decoding="async" loading="lazy" fetchpriority="low" src="%s" data-src="%s"%s/>`, afterSrc, afterSrc, dim)
-				beforeTag = fmt.Sprintf(`<img alt="" class="comparison_slider__slider_image comparison_slider__slider_image--1" decoding="async" loading="lazy" fetchpriority="low" src="%s" data-src="%s"%s/>`, beforeSrc, beforeSrc, dim)
+				afterTag = fmt.Sprintf(`<img alt="%s" class="comparison_slider__slider_image comparison_slider__slider_image--2" decoding="async" loading="lazy" fetchpriority="low" src="%s" data-src="%s"%s/>`, template.HTMLEscapeString(afterAlt), afterSrc, afterSrc, dim)
+				beforeTag = fmt.Sprintf(`<img alt="%s" class="comparison_slider__slider_image comparison_slider__slider_image--1" decoding="async" loading="lazy" fetchpriority="low" src="%s" data-src="%s"%s/>`, template.HTMLEscapeString(beforeAlt), beforeSrc, beforeSrc, dim)
 			}
 			uid := fmt.Sprintf("%s-%d", b.ID, i)
 			html = fmt.Sprintf(`
 <div class="_4ORMAT_content_page_row _4ormat_sort_item _4ORMAT_module_comparison_slider_01 format_comparison_slider" data-content-module-category="comparison-slider" style="--slider-default-position:50;--slider-color:#000;--slider-icon-color:#fff;--slider-line-thickness:2;--slider-size:48;--slider-icon-width:9px;--slider-icon-height:14px;--slider-icon-margin:6px;--slider-icon-shape:50%%;">
-<div id="comparison_slider%s" data-dom-id="comparison_slider" data-editable-type="comparison-slider" data-using-default-images="false">
+<div id="comparison_slider%s" data-dom-id="comparison-slider" data-editable-type="comparison-slider" data-using-default-images="false">
 <div class="%s">
 <div class="comparison_slider__slider_wrap">
 <div class="comparison_slider__image_wrap">
@@ -755,16 +787,24 @@ func (g *Generator) renderBlocks(p cms.Page) ([]renderedBlock, []cms.Media, erro
 </div>
 </div>
 </div>
-<div class="comparison_slider__copy_wrap"></div>
+%s
 </div>
 </div>
-</div>`, uid, cls, galleryLoadMarkHTML, afterTag, beforeTag)
+</div>`, uid, cls, galleryLoadMarkHTML, afterTag, beforeTag, capHTML)
 
 		case cms.BlockGalleryImage:
 			mid, _ := data["media_id"].(string)
 			url, _ := data["url"].(string)
 			alt, _ := data["alt"].(string)
 			caption, _ := data["caption"].(string)
+			if m, ok := lookupMedia(mid, ""); ok {
+				if strings.TrimSpace(alt) == "" {
+					alt = firstNonEmpty(m.Alt, m.Title)
+				}
+				if strings.TrimSpace(caption) == "" {
+					caption = m.Caption
+				}
+			}
 			src, _ := resolve(mid, url)
 			if strings.TrimSpace(src) == "" {
 				continue
@@ -1122,4 +1162,14 @@ func copyFileSkipUnchanged(src, dst string) error {
 		return err
 	}
 	return os.Chtimes(dst, si.ModTime(), si.ModTime())
+}
+
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }

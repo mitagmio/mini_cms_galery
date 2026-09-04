@@ -82,6 +82,7 @@ func FormKeyFromTemplateID(id string) string {
 }
 
 const DefaultYandexMetrikaID = "95095785"
+const DefaultGTMContainerID = "GTM-K5DWKFDZ"
 
 type SiteSettings struct {
 	SiteName           string `json:"site_name"`
@@ -95,6 +96,7 @@ type SiteSettings struct {
 	CanonicalBase      string `json:"canonical_base"`
 	DefaultTitleSuffix string `json:"default_title_suffix,omitempty"`
 	DefaultDescription string `json:"default_description,omitempty"`
+	DefaultKeywords    string `json:"default_keywords,omitempty"`
 	Robots             string `json:"robots,omitempty"`
 	FaviconMediaID     string `json:"favicon_media_id,omitempty"`
 	OGImageMediaID     string `json:"og_image_media_id,omitempty"`
@@ -103,6 +105,9 @@ type SiteSettings struct {
 	// YandexMetrikaEnabled toggles the public-site counter (publish only).
 	YandexMetrikaEnabled bool   `json:"yandex_metrika_enabled"`
 	YandexMetrikaID      string `json:"yandex_metrika_id,omitempty"`
+	// GTMEnabled toggles Google Tag Manager on published pages only (not preview).
+	GTMEnabled    bool   `json:"gtm_enabled"`
+	GTMContainerID string `json:"gtm_container_id,omitempty"`
 	UpdatedAt            string `json:"updated_at,omitempty"`
 	// Social is admin-friendly nested shape; filled on marshal via SettingsDTO.
 	Social map[string]string `json:"social,omitempty"`
@@ -119,7 +124,11 @@ type Page struct {
 	NavLabel        string          `json:"nav_label,omitempty"`
 	MetaTitle       string          `json:"meta_title"`
 	MetaDescription string          `json:"meta_description"`
+	MetaKeywords    string          `json:"meta_keywords"`
 	CanonicalPath   string          `json:"canonical_path"`
+	OGTitle         string          `json:"og_title"`
+	OGDescription   string          `json:"og_description"`
+	OGType          string          `json:"og_type"`
 	OGImage         string          `json:"og_image"`
 	IsHomepage      bool            `json:"is_homepage"`
 	CreatedAt       string          `json:"created_at"`
@@ -134,7 +143,11 @@ type Page struct {
 type PageSEO struct {
 	MetaTitle       string `json:"meta_title"`
 	MetaDescription string `json:"meta_description"`
+	MetaKeywords    string `json:"meta_keywords"`
 	CanonicalPath   string `json:"canonical_path"`
+	OGTitle         string `json:"og_title"`
+	OGDescription   string `json:"og_description"`
+	OGType          string `json:"og_type"`
 	OGImageMediaID  string `json:"og_image_media_id,omitempty"`
 }
 
@@ -158,8 +171,25 @@ func FlattenSEOPatch(patch map[string]any) {
 			patch["meta_description"] = v
 		}
 	}
+	if v, ok := seo["meta_keywords"].(string); ok {
+		patch["meta_keywords"] = v
+	}
+	if v, ok := seo["keywords"].(string); ok {
+		if _, exists := patch["meta_keywords"]; !exists {
+			patch["meta_keywords"] = v
+		}
+	}
 	if v, ok := seo["canonical_path"].(string); ok {
 		patch["canonical_path"] = v
+	}
+	if v, ok := seo["og_title"].(string); ok {
+		patch["og_title"] = v
+	}
+	if v, ok := seo["og_description"].(string); ok {
+		patch["og_description"] = v
+	}
+	if v, ok := seo["og_type"].(string); ok {
+		patch["og_type"] = v
 	}
 	if v, ok := seo["og_image"].(string); ok {
 		patch["og_image"] = v
@@ -188,8 +218,20 @@ func (p *Page) NormalizeAliases() {
 		if p.MetaDescription == "" && p.SEO.MetaDescription != "" {
 			p.MetaDescription = p.SEO.MetaDescription
 		}
+		if p.MetaKeywords == "" && p.SEO.MetaKeywords != "" {
+			p.MetaKeywords = p.SEO.MetaKeywords
+		}
 		if p.CanonicalPath == "" && p.SEO.CanonicalPath != "" {
 			p.CanonicalPath = p.SEO.CanonicalPath
+		}
+		if p.OGTitle == "" && p.SEO.OGTitle != "" {
+			p.OGTitle = p.SEO.OGTitle
+		}
+		if p.OGDescription == "" && p.SEO.OGDescription != "" {
+			p.OGDescription = p.SEO.OGDescription
+		}
+		if p.OGType == "" && p.SEO.OGType != "" {
+			p.OGType = p.SEO.OGType
 		}
 		if p.OGImage == "" && p.SEO.OGImageMediaID != "" {
 			p.OGImage = p.SEO.OGImageMediaID
@@ -199,7 +241,11 @@ func (p *Page) NormalizeAliases() {
 	p.SEO = &PageSEO{
 		MetaTitle:       p.MetaTitle,
 		MetaDescription: p.MetaDescription,
+		MetaKeywords:    p.MetaKeywords,
 		CanonicalPath:   p.CanonicalPath,
+		OGTitle:         p.OGTitle,
+		OGDescription:   p.OGDescription,
+		OGType:          p.OGType,
 		OGImageMediaID:  p.OGImage,
 	}
 	if len(p.Settings) == 0 || string(p.Settings) == "null" {
@@ -239,6 +285,7 @@ type Media struct {
 	ThumbURL      string `json:"thumb_url,omitempty"`
 	Title         string `json:"title,omitempty"`
 	Alt           string `json:"alt,omitempty"`
+	Caption       string `json:"caption,omitempty"`
 	Kind          string `json:"kind,omitempty"`
 	Mime          string `json:"mime,omitempty"`
 	SizeBytes     int64  `json:"size_bytes,omitempty"`

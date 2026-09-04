@@ -112,6 +112,18 @@ export default function MediaLibrary() {
     }
   }
 
+  async function saveMeta(id, patch) {
+    try {
+      const res = await admin.media.patch(id, patch)
+      const m = res.media || res
+      setItems((prev) => prev.map((x) => (x.id === id ? { ...x, ...m } : x)))
+      invalidateMediaListCache()
+      toast.ok('Saved')
+    } catch (e) {
+      toast.error(e.message)
+    }
+  }
+
   const fileLabel =
     files.length === 0
       ? 'No files'
@@ -209,6 +221,24 @@ export default function MediaLibrary() {
                 <div className="meta">
                   {m.kind || '—'} · {m.title || m.id}
                 </div>
+                <label>
+                  Alt
+                  <input
+                    defaultValue={m.alt || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (m.alt || '')) saveMeta(m.id, { alt: e.target.value })
+                    }}
+                  />
+                </label>
+                <label>
+                  Caption
+                  <input
+                    defaultValue={m.caption || ''}
+                    onBlur={(e) => {
+                      if (e.target.value !== (m.caption || '')) saveMeta(m.id, { caption: e.target.value })
+                    }}
+                  />
+                </label>
                 <button type="button" className="secondary danger small" onClick={() => remove(m.id)}>
                   Delete
                 </button>

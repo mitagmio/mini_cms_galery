@@ -3,11 +3,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
+{{.GTMHead}}
 <meta content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width" name="viewport"/>
 <title>{{.HTMLTitle}} - {{.Settings.SiteName}}</title>
-<meta name="description" content="{{.MetaDescription}}"/>
-<meta content="noai, noimageai" name="robots"/>
-<link rel="canonical" href="{{.CanonicalURL}}"/>
+{{template "seo_meta" .}}
 <link href="/static/theme_api/v1/hosted_fonts-58e499298cb6db37c90c2bd6bd2ad287c8423ad12d9c2cc346a2af9afc8b7fd4.css" media="screen" rel="stylesheet"/>
 <link href="/static/theme_api/vendor/webtype_fonts.min-a27384810945198dd373502796bfbada62cc8409c49831a8778ac894e78f7749.css" media="screen" rel="stylesheet"/>
 <link href="/assets/theme/stylesheet.css?v=16" media="screen" rel="stylesheet"/>
@@ -18,6 +17,7 @@
 <link href="/assets/theme/rates.css?v=25" media="screen" rel="stylesheet"/>
 </head>
 <body class="rates rates-page content content_page simple simple_page">
+{{.GTMBody}}
 <div class="page clearfix">
 <div class="theme_header static clearfix" id="themeHeader">
 <div class="padding-div">
@@ -29,6 +29,7 @@
 </div>
 <div id="content">
 <div class="_4ORMAT_content_wrapper rates-intro" id="content_page_wrapper">
+{{template "page_heading" .}}
 <div class="_4ORMAT_content_page_container _4ormat_sort">
 {{- range .RenderedBlocks }}
 {{- if eq .Type "rich_text" }}
