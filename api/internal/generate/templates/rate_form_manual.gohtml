@@ -13,12 +13,14 @@
 </select>
 </label>
 <h3 class="rate-step">STEP 1</h3>
+<h2 class="rate-form-heading">Project Details</h2>
 {{template "rate_imagelink" .}}
 {{template "rate_total" .}}
 {{template "rate_delivery" .}}
 <div data-task-show="color,hair,cut_model,cut_object" class="rate-color-ref-wrap">
-<label class="rate-field">Color reference
-<input class="_4ORMAT_module_contact_input" name="Color_Reference" type="text" maxlength="2000" placeholder="Link to color reference" autocomplete="off" data-rate-color-ref/>
+<label class="rate-field">Color Reference
+<input class="_4ORMAT_module_contact_input" name="Color_Reference" type="text" maxlength="2000" placeholder="Paste the link here" autocomplete="off" data-rate-color-ref/>
+<span class="rate-hint">Provide a link to your preferred color reference (optional).</span>
 </label>
 </div>
 <div data-task-show="cut_model,cut_object" hidden>
@@ -33,7 +35,9 @@
 {{template "rate_format_cut" .}}
 </div>
 {{template "rate_profile" .}}
+<p class="rate-hint">Please specify the technical requirements for your final image delivery.</p>
 <h3 class="rate-step">STEP 2</h3>
+<h2 class="rate-form-heading">Retouching Requirements</h2>
 <div data-task-show="color" hidden>
 {{template "rate_colorwork_manual" .}}
 </div>

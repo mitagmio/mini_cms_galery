@@ -414,45 +414,45 @@ func formatRatesEmail(form string, req submitReq, name, email, ip string, schema
 		add(item{label: "Task", value: v})
 	}
 	if v := fieldString(req.Fields, "Imagelink"); v != "" {
-		add(item{label: "Images", url: absoluteURL(v)})
+		add(item{label: "Image Submission", url: absoluteURL(v)})
 	}
 	if v := fieldString(req.Fields, "Total"); v != "" {
-		add(item{label: "Total", value: v})
+		add(item{label: "Total Number of Images", value: v})
 	}
 	if v := fieldString(req.Fields, "Final_delivery"); v != "" {
 		if iso, ok := normalizeDeliveryDate(v); ok {
 			v = iso
 		}
-		add(item{label: "Final delivery", value: v})
+		add(item{label: "Requested Delivery Date", value: v})
 	}
 	if v := fieldString(req.Fields, "Retouch_level"); v != "" {
 		text := v
 		if lab := retouchLevelLabels[v]; lab != "" {
 			text = v + " — " + lab
 		}
-		add(item{label: "Retouch level", value: text})
+		add(item{label: "Retouching Style", value: text})
 	}
 	if v := fieldString(req.Fields, "Color_Reference"); v != "" {
-		add(item{label: "Color reference", url: absoluteURL(v)})
+		add(item{label: "Color Reference", url: absoluteURL(v)})
 	}
 	if v := fieldString(req.Fields, "backclipping"); v != "" {
 		add(item{label: "Background reference", url: absoluteURL(v)})
 	}
 	if v := fieldString(req.Fields, "Format"); v != "" {
-		add(item{label: "Format", value: v})
+		add(item{label: "Image Format", value: v})
 	}
 	if v := fieldString(req.Fields, "Profile"); v != "" {
-		add(item{label: "Profile", value: v})
+		add(item{label: "Color Profile", value: v})
 	}
 
 	listKeys := []struct{ key, label string }{
-		{"colorwork", "Color correction"},
-		{"background", "Background editing"},
-		{"model", "Model editing"},
-		{"clothing", "Clothing editing"},
-		{"footwear", "Footwear editing"},
-		{"objectwork", "Object editing"},
-		{"hairretouch", "Hair retouching"},
+		{"colorwork", "Color & Tone Adjustments"},
+		{"background", "Background Retouching"},
+		{"model", "Model Retouching"},
+		{"clothing", "Clothing Retouching"},
+		{"footwear", "Footwear Retouching"},
+		{"objectwork", "Object Retouching"},
+		{"hairretouch", "Hair Retouching"},
 		{"clipping", "Clipping"},
 	}
 	for _, lk := range listKeys {

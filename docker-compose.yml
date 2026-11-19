@@ -12,6 +12,9 @@ services:
       - ./front:/front
       # Optional legacy worktree
       - ./.docker-volumes/api-ghp:/data/ghp
+      # Deploy key for Publish → GitHub Pages (SSH only; mitagmio account)
+      - /root/.ssh/rpine_ed25519:/data/ghp-ssh/id_ed25519:ro
+      - /root/.ssh/known_hosts:/data/ghp-ssh/known_hosts:ro
     expose:
       - "8080"
     restart: unless-stopped

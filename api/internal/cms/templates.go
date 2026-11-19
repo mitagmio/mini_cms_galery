@@ -348,12 +348,25 @@ func (s *Store) EnsureSystemTemplates() error {
 		if err != nil {
 			return err
 		}
-		if cur.Kind == TemplateKindForm && IsEmptyJSONArray(cur.DefaultBlocks) {
-			seed := DefaultFormBlocks(cur.FormKey)
-			if _, err := s.PatchTemplate(cur.ID, map[string]any{
-				"default_blocks": jsonArrayAny(seed),
-			}); err != nil {
-				return err
+		if cur.Kind == TemplateKindForm {
+			needsSeed := IsEmptyJSONArray(cur.DefaultBlocks)
+			if !needsSeed {
+				// One-shot copy refresh when stock labels from before Nov 2026 copy pass remain.
+				fields := ParseFormFields(cur.DefaultBlocks)
+				if f, ok := SchemaField(fields, "Imagelink"); ok && f.Label() == "Share link with images" {
+					needsSeed = true
+				}
+				if f, ok := SchemaField(fields, "Retouch_level"); ok && strings.Contains(f.Help(), "will not affect the final cost") {
+					needsSeed = true
+				}
+			}
+			if needsSeed {
+				seed := DefaultFormBlocks(cur.FormKey)
+				if _, err := s.PatchTemplate(cur.ID, map[string]any{
+					"default_blocks": jsonArrayAny(seed),
+				}); err != nil {
+					return err
+				}
 			}
 		}
 	}

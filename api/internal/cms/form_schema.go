@@ -392,24 +392,26 @@ func contactFooterData() map[string]any {
 
 func step1Core(withRetouch bool) []map[string]any {
 	out := []map[string]any{
-		blk(BlockFormStep, map[string]any{"title": "STEP 1"}),
+		blk(BlockFormStep, map[string]any{"title": "STEP 1", "heading": "Project Details"}),
 		blk(BlockFormText, map[string]any{
-			"name": "Imagelink", "label": "Share link with images",
-			"placeholder": "GoogleDrive, DropBox or other", "required": true,
+			"name": "Imagelink", "label": "Image Submission",
+			"placeholder": "Paste the link here", "required": true,
+			"help": "Share a link to your images (Google Drive, Dropbox, or another file-sharing service).",
 		}),
 		blk(BlockFormNumber, map[string]any{
-			"name": "Total", "label": "Total", "required": true, "min": 1,
+			"name": "Total", "label": "Total Number of Images", "required": true, "min": 1,
+			"placeholder": "e.g. 30",
 		}),
 		blk(BlockFormDate, map[string]any{
-			"name": "Final_delivery", "label": "Final delivery", "required": true,
+			"name": "Final_delivery", "label": "Requested Delivery Date", "required": true,
 			"placeholder": "YYYY-MM-DD",
 			"help":        "Type YYYY-MM-DD or use the English calendar. Past dates are not allowed.",
 		}),
 	}
 	if withRetouch {
 		out = append(out, blk(BlockFormRetouch, map[string]any{
-			"name": "Retouch_level", "label": "Retouch level", "required": true,
-			"help":    "It will give us the idea of what you prefer, and will not affect the final cost.",
+			"name": "Retouch_level", "label": "Retouching Style", "required": true,
+			"help":    "Choose the level of retouching that best matches your expectations.",
 			"options": retouchOpts(),
 		}))
 	}
@@ -418,16 +420,22 @@ func step1Core(withRetouch bool) []map[string]any {
 
 func step2Format() []map[string]any {
 	return []map[string]any{
-		blk(BlockFormStep, map[string]any{"title": "STEP 2"}),
+		blk(BlockFormStep, map[string]any{"title": "STEP 2", "heading": "Color & Image Settings"}),
 		blk(BlockFormText, map[string]any{
-			"name": "Color_Reference", "label": "Color reference",
-			"placeholder": "Link to color reference (optional)",
+			"name": "Color_Reference", "label": "Color Reference",
+			"placeholder": "Paste the link here",
+			"help":        "Provide a link to your preferred color reference (optional).",
 		}),
 		blk(BlockFormSelect, map[string]any{
-			"name": "Format", "label": "Format", "required": true, "options": formatStdOpts(),
+			"name": "Format", "label": "Image Format", "required": true,
+			"placeholder": "Select format", "options": formatStdOpts(),
 		}),
 		blk(BlockFormSelect, map[string]any{
-			"name": "Profile", "label": "Profile", "required": true, "options": profileOptsSeed(),
+			"name": "Profile", "label": "Color Profile", "required": true,
+			"placeholder": "Select color profile", "options": profileOptsSeed(),
+		}),
+		blk(BlockFormHelp, map[string]any{
+			"text": "Please specify the technical requirements for your final image delivery.",
 		}),
 	}
 }
@@ -449,9 +457,9 @@ func fashionFormBlocks() []map[string]any {
 	out = append(out, step1Core(true)...)
 	out = append(out, step2Format()...)
 	out = append(out,
-		blk(BlockFormStep, map[string]any{"title": "STEP 3"}),
+		blk(BlockFormStep, map[string]any{"title": "STEP 3", "heading": "Retouching Requirements"}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "colorwork", "label": "Color Correction",
+			"name": "colorwork", "label": "Color & Tone Adjustments",
 			"options": strOpts(
 				"Basic RAW Development (Camera RAW or Capture One)",
 				"Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)",
@@ -466,11 +474,11 @@ func fashionFormBlocks() []map[string]any {
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "background", "label": "Background Editing",
+			"name": "background", "label": "Background Retouching",
 			"options": strOpts("Dust, Stain, and Scratch Removal", "Clipping mask", "Background Replacement"),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "model", "label": "Model Editing",
+			"name": "model", "label": "Model Retouching",
 			"options": strOpts(
 				"Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)",
 				"Makeup Correction",
@@ -479,7 +487,7 @@ func fashionFormBlocks() []map[string]any {
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "clothing", "label": "Clothing Editing",
+			"name": "clothing", "label": "Clothing Retouching",
 			"options": strOpts(
 				"General Cleaning (Pilling, Dust, Threads)",
 				"Wrinkle/Crease Smoothing",
@@ -489,7 +497,7 @@ func fashionFormBlocks() []map[string]any {
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "footwear", "label": "Footwear Editing",
+			"name": "footwear", "label": "Footwear Retouching",
 			"options": strOpts(
 				"General Cleaning (Dust, Scratches)",
 				"Tape Removal from Shoe Sole",
@@ -507,9 +515,9 @@ func beautyFormBlocks() []map[string]any {
 	out = append(out, step1Core(true)...)
 	out = append(out, step2Format()...)
 	out = append(out,
-		blk(BlockFormStep, map[string]any{"title": "STEP 3"}),
+		blk(BlockFormStep, map[string]any{"title": "STEP 3", "heading": "Retouching Requirements"}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "colorwork", "label": "Color Correction",
+			"name": "colorwork", "label": "Color & Tone Adjustments",
 			"options": strOpts(
 				"Basic RAW Development (Camera RAW or Capture One)",
 				"Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)",
@@ -524,11 +532,11 @@ func beautyFormBlocks() []map[string]any {
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "background", "label": "Background Editing",
+			"name": "background", "label": "Background Retouching",
 			"options": strOpts("Dust, Stain, and Scratch Removal", "Clipping mask", "Background Replacement"),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "model", "label": "Model Editing",
+			"name": "model", "label": "Model Retouching",
 			"options": strOpts(
 				"Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)",
 				"Makeup Correction",
@@ -550,9 +558,9 @@ func productFormBlocks() []map[string]any {
 	out = append(out, step1Core(false)...)
 	out = append(out, step2Format()...)
 	out = append(out,
-		blk(BlockFormStep, map[string]any{"title": "STEP 3"}),
+		blk(BlockFormStep, map[string]any{"title": "STEP 3", "heading": "Retouching Requirements"}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "colorwork", "label": "Color Correction",
+			"name": "colorwork", "label": "Color & Tone Adjustments",
 			"options": strOpts(
 				"Basic RAW Development",
 				"Changing the color on individual elements",
@@ -562,7 +570,7 @@ func productFormBlocks() []map[string]any {
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "background", "label": "Background Editing",
+			"name": "background", "label": "Background Retouching",
 			"options": strOpts(
 				"Dust, Spot, and Scratch Removal",
 				"Clipping mask",
@@ -572,7 +580,7 @@ func productFormBlocks() []map[string]any {
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "objectwork", "label": "Object Editing",
+			"name": "objectwork", "label": "Object Retouching",
 			"options": strOpts(
 				"Dust, Spot, Scratch, Chip, and Minor Flaw Removal",
 				"Object Alignment, Perspective Correction",
@@ -606,22 +614,25 @@ func manualFormBlocks() []map[string]any {
 				{"hair", "Only hair retouching"},
 			}),
 		}),
-		blk(BlockFormStep, map[string]any{"title": "STEP 1"}),
+		blk(BlockFormStep, map[string]any{"title": "STEP 1", "heading": "Project Details"}),
 		blk(BlockFormText, map[string]any{
-			"name": "Imagelink", "label": "Share link with images",
-			"placeholder": "GoogleDrive, DropBox or other", "required": true,
+			"name": "Imagelink", "label": "Image Submission",
+			"placeholder": "Paste the link here", "required": true,
+			"help": "Share a link to your images (Google Drive, Dropbox, or another file-sharing service).",
 		}),
 		blk(BlockFormNumber, map[string]any{
-			"name": "Total", "label": "Total", "required": true, "min": 1,
+			"name": "Total", "label": "Total Number of Images", "required": true, "min": 1,
+			"placeholder": "e.g. 30",
 		}),
 		blk(BlockFormDate, map[string]any{
-			"name": "Final_delivery", "label": "Final delivery", "required": true,
+			"name": "Final_delivery", "label": "Requested Delivery Date", "required": true,
 			"placeholder": "YYYY-MM-DD",
 			"help":        "Type YYYY-MM-DD or use the English calendar. Past dates are not allowed.",
 		}),
 		blk(BlockFormText, map[string]any{
-			"name": "Color_Reference", "label": "Color reference",
-			"placeholder": "Link to color reference",
+			"name": "Color_Reference", "label": "Color Reference",
+			"placeholder": "Paste the link here",
+			"help":        "Provide a link to your preferred color reference (optional).",
 			"show_if":     "task=color,hair,cut_model,cut_object",
 			"wrap_class":  "rate-color-ref-wrap",
 			"hidden":      false,
@@ -633,19 +644,25 @@ func manualFormBlocks() []map[string]any {
 			"hidden":      true,
 		}),
 		blk(BlockFormSelect, map[string]any{
-			"name": "Format", "label": "Format", "required": true,
+			"name": "Format", "label": "Image Format", "required": true,
+			"placeholder": "Select format",
 			"format_mode": "std", "options": formatStdOpts(),
 		}),
 		blk(BlockFormSelect, map[string]any{
-			"name": "Format", "label": "Format", "required": true,
+			"name": "Format", "label": "Image Format", "required": true,
+			"placeholder": "Select format",
 			"format_mode": "cut", "options": formatCutOpts(),
 		}),
 		blk(BlockFormSelect, map[string]any{
-			"name": "Profile", "label": "Profile", "required": true, "options": profileOptsSeed(),
+			"name": "Profile", "label": "Color Profile", "required": true,
+			"placeholder": "Select color profile", "options": profileOptsSeed(),
 		}),
-		blk(BlockFormStep, map[string]any{"title": "STEP 2"}),
+		blk(BlockFormHelp, map[string]any{
+			"text": "Please specify the technical requirements for your final image delivery.",
+		}),
+		blk(BlockFormStep, map[string]any{"title": "STEP 2", "heading": "Retouching Requirements"}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "colorwork", "label": "Color Correction",
+			"name": "colorwork", "label": "Color & Tone Adjustments",
 			"show_if": "task=color", "hidden": true,
 			"options": strOpts(
 				"Basic RAW Development",
@@ -657,7 +674,7 @@ func manualFormBlocks() []map[string]any {
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
-			"name": "hairretouch", "label": "Hair retouching",
+			"name": "hairretouch", "label": "Hair Retouching",
 			"show_if": "task=hair", "hidden": true,
 			"options": strOpts(
 				"Remove Flyaway Hair",

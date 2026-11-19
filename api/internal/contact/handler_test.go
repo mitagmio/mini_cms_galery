@@ -421,16 +421,16 @@ func TestSubmitRatesFashionSuccess(t *testing.T) {
 	if !strings.Contains(body, "New request from sheyanova.art RATES (FASHION)") {
 		t.Fatalf("intro missing: %s", body)
 	}
-	if !strings.Contains(body, "Images:") || !strings.Contains(body, "https://drive.example/folder") {
+	if !strings.Contains(body, "Image Submission:") || !strings.Contains(body, "https://drive.example/folder") {
 		t.Fatalf("labeled image URL missing: %s", body)
 	}
 	if strings.Contains(body, "Imagelink:") {
-		t.Fatalf("want question label Images, not raw key: %s", body)
+		t.Fatalf("want question label Image Submission, not raw key: %s", body)
 	}
-	if !strings.Contains(body, "Retouch level: 2 — Removing obvious blemishes") {
+	if !strings.Contains(body, "Retouching Style: 2 — Removing obvious blemishes") {
 		t.Fatalf("retouch label missing: %s", body)
 	}
-	if !strings.Contains(body, "Color correction:") || !strings.Contains(body, "- Basic RAW Development") {
+	if !strings.Contains(body, "Color & Tone Adjustments:") || !strings.Contains(body, "- Basic RAW Development") {
 		t.Fatalf("checkbox group missing: %s", body)
 	}
 	if !strings.Contains(fs.last.HTMLBody, `<a href="https://drive.example/folder">`) {

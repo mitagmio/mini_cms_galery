@@ -6,10 +6,10 @@ COPY . .
 RUN CGO_ENABLED=0 go build -o /out/server ./cmd/server
 
 FROM alpine:3.20
-RUN apk add --no-cache ca-certificates git
+RUN apk add --no-cache ca-certificates git openssh-client
 WORKDIR /app
 COPY --from=build /out/server /app/server
-RUN mkdir -p /data/uploads /data/preview \
+RUN mkdir -p /data/uploads /data/preview /data/ghp-ssh \
  && git config --system --add safe.directory /front
 ENV LISTEN_ADDR=:8080 \
     DATA_DIR=/data \

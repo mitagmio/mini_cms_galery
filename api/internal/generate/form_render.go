@@ -45,7 +45,6 @@ func renderRateHidden(m RateModal) string {
 func renderRateTitle(m RateModal) string {
 	esc := template.HTMLEscapeString
 	return fmt.Sprintf(`<p class="rate-form-caption" id="rate-title-%s">%s</p>
-<h2 class="rate-form-heading">PROJECT DETAILS</h2>
 `, esc(m.Key), esc(m.Caption))
 }
 
@@ -67,7 +66,14 @@ func renderFormField(f cms.FormField, m RateModal) string {
 		if title == "" {
 			return ""
 		}
-		inner = fmt.Sprintf(`<h3 class="rate-step">%s</h3>`+"\n", template.HTMLEscapeString(title))
+		esc := template.HTMLEscapeString
+		heading := strings.TrimSpace(mapString(f.Data, "heading"))
+		if heading != "" {
+			inner = fmt.Sprintf(`<h3 class="rate-step">%s</h3>`+"\n"+`<h2 class="rate-form-heading">%s</h2>`+"\n",
+				esc(title), esc(heading))
+		} else {
+			inner = fmt.Sprintf(`<h3 class="rate-step">%s</h3>`+"\n", esc(title))
+		}
 	case cms.BlockFormHelp:
 		text := f.Help()
 		if html := strings.TrimSpace(mapString(f.Data, "html")); html != "" {
@@ -165,10 +171,14 @@ func renderTextInput(f cms.FormField, typ string) string {
 		max = 254
 		typ = "email"
 	}
+	helpHTML := ""
+	if help := strings.TrimSpace(f.Help()); help != "" {
+		helpHTML = fmt.Sprintf(`<span class="rate-hint">%s</span>`, esc(help))
+	}
 	return fmt.Sprintf(`<label class="rate-field">%s
 <input class="%s" name="%s" type="%s"%s maxlength="%d"%s autocomplete="off"%s/>
-</label>
-`, esc(f.Label()), fieldClass(), esc(name), esc(typ), req, max, phAttr, extra)
+%s</label>
+`, esc(f.Label()), fieldClass(), esc(name), esc(typ), req, max, phAttr, extra, helpHTML)
 }
 
 func renderNumberInput(f cms.FormField) string {
@@ -194,10 +204,14 @@ func renderNumberInput(f cms.FormField) string {
 			}
 		}
 	}
+	phAttr := ""
+	if ph := strings.TrimSpace(f.Placeholder()); ph != "" {
+		phAttr = fmt.Sprintf(` placeholder="%s"`, esc(ph))
+	}
 	return fmt.Sprintf(`<label class="rate-field">%s
-<input class="%s" name="%s" type="number"%s min="%d" step="1" inputmode="numeric"/>
+<input class="%s" name="%s" type="number"%s min="%d" step="1" inputmode="numeric"%s/>
 </label>
-`, esc(f.Label()), fieldClass(), esc(name), req, min)
+`, esc(f.Label()), fieldClass(), esc(name), req, min, phAttr)
 }
 
 func renderDateInput(f cms.FormField, m RateModal) string {
@@ -212,7 +226,7 @@ func renderDateInput(f cms.FormField, m RateModal) string {
 	}
 	label := f.Label()
 	if label == "" {
-		label = "Final delivery"
+		label = "Requested Delivery Date"
 	}
 	help := f.Help()
 	if help == "" {
@@ -275,8 +289,12 @@ func renderSelect(f cms.FormField) string {
 	if name == "task" {
 		extra = ` data-rate-task`
 	}
+	emptyLabel := strings.TrimSpace(f.Placeholder())
+	if emptyLabel == "" {
+		emptyLabel = "Select"
+	}
 	var opts strings.Builder
-	opts.WriteString(`<option value="" disabled selected>Select</option>`)
+	fmt.Fprintf(&opts, `<option value="" disabled selected>%s</option>`, esc(emptyLabel))
 	for _, o := range f.Options() {
 		fmt.Fprintf(&opts, `<option value="%s">%s</option>`, esc(o.Value), esc(o.Label))
 	}
@@ -338,11 +356,11 @@ func renderRetouch(f cms.FormField) string {
 	}
 	label := f.Label()
 	if label == "" {
-		label = "Retouch level"
+		label = "Retouching Style"
 	}
 	help := f.Help()
 	if help == "" {
-		help = "It will give us the idea of what you prefer, and will not affect the final cost."
+		help = "Choose the level of retouching that best matches your expectations."
 	}
 	opts := f.Options()
 	if len(opts) == 0 {
