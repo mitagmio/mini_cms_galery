@@ -351,12 +351,24 @@ func (s *Store) EnsureSystemTemplates() error {
 		if cur.Kind == TemplateKindForm {
 			needsSeed := IsEmptyJSONArray(cur.DefaultBlocks)
 			if !needsSeed {
-				// One-shot copy refresh when stock labels from before Nov 2026 copy pass remain.
+				// One-shot copy refresh when stock labels from before the form-copy pass remain.
 				fields := ParseFormFields(cur.DefaultBlocks)
 				if f, ok := SchemaField(fields, "Imagelink"); ok && f.Label() == "Share link with images" {
 					needsSeed = true
 				}
-				if f, ok := SchemaField(fields, "Retouch_level"); ok && strings.Contains(f.Help(), "will not affect the final cost") {
+				if f, ok := SchemaField(fields, "Retouch_level"); ok {
+					if strings.Contains(f.Help(), "will not affect the final cost") {
+						needsSeed = true
+					}
+					for _, o := range f.Options() {
+						if o.Plaque == "LIGHT / RAW" || strings.Contains(o.Label, "doesn't affect the shadow") {
+							needsSeed = true
+							break
+						}
+					}
+				}
+				// Two independent STEP 3 columns (avoids CSS grid row holes / empty gaps).
+				if !strings.Contains(string(cur.DefaultBlocks), "rate-reqs-col") {
 					needsSeed = true
 				}
 			}

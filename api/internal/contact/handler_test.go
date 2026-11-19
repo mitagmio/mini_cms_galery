@@ -427,7 +427,7 @@ func TestSubmitRatesFashionSuccess(t *testing.T) {
 	if strings.Contains(body, "Imagelink:") {
 		t.Fatalf("want question label Image Submission, not raw key: %s", body)
 	}
-	if !strings.Contains(body, "Retouching Style: 2 — Removing obvious blemishes") {
+	if !strings.Contains(body, "Retouching Style: 2 — NATURAL RETOUCHING") {
 		t.Fatalf("retouch label missing: %s", body)
 	}
 	if !strings.Contains(body, "Color & Tone Adjustments:") || !strings.Contains(body, "- Basic RAW Development") {

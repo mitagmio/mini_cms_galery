@@ -12,91 +12,91 @@ import (
 )
 
 var fashionColorwork = []string{
-	"Basic RAW Development (Camera RAW or Capture One)",
-	"Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)",
-	"Skin Tone Balancing (for example, reduce redness in hands/fingers)",
-	"Even Out Body Exposure (for example, when the neck and chest area lighter in relation to the face)",
-	"Brightening Eye Whites and Teeth",
-	"Color Correction by Reference",
-	"No-Reference Color Image Grading (options to our taste)",
-	"Selective Color Adjustment",
-	"Changing the color on individual elements",
-	"Working with Light Accents: Highlighting the Main Object by Brightness Adjusting",
+	"RAW Processing (Camera Raw / Capture One)",
+	"Color Cast Removal (neutralizing unwanted color shifts)",
+	"Skin Tone Refinement (balancing uneven skin tones and redness)",
+	"Body Exposure Correction (balancing light across the body)",
+	"Eye & Teeth Brightening",
+	"Color Matching to Reference",
+	"Creative Color Grading (without a reference)",
+	"Selective Color Adjustments",
+	"Individual Object Color Changes",
+	"Light & Shadow Adjustments (enhancing the main subject)",
 }
 
 var beautyColorwork = []string{
-	"Basic RAW Development (Camera RAW or Capture One)",
-	"Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)",
-	"Skin Tone Balancing (for example, reduce redness in hands/fingers)",
-	"Even Out Body Exposure (for example, when the neck and chest area lighter in relation to the face)",
-	"Brightening Eye Whites and Teeth",
-	"Color Correction by Reference",
-	"No-Reference Color Image Grading (options to our taste)",
-	"Changing the color on individual elements (for example, makeup/nail/lipstick colors)",
+	"RAW Processing (Camera Raw / Capture One)",
+	"Color Cast Removal (neutralizing unwanted color shifts)",
+	"Skin Tone Refinement (balancing uneven skin tones and redness)",
+	"Body Exposure Correction (balancing light across the body)",
+	"Eye & Teeth Brightening",
+	"Color Matching to Reference",
+	"Creative Color Grading (without a reference)",
+	"Individual Object Color Changes (for example, makeup/nail/lipstick colors)",
 	"Contrast Enhancement",
-	"Working with Light Accents: Highlighting the Main Object by Brightness Adjusting",
+	"Light & Shadow Adjustments (enhancing the main subject)",
 }
 
 var productColorwork = []string{
-	"Basic RAW Development",
-	"Changing the color on individual elements",
-	"Color Correction by Reference",
-	"No-Reference Color Image Grading (options to our taste)",
+	"RAW Processing",
+	"Individual Object Color Changes",
+	"Color Matching to Reference",
+	"Creative Color Grading (without a reference)",
 	"Contrast Enhancement",
 }
 
 var manualColorwork = []string{
-	"Basic RAW Development",
-	"Color Correction by Reference",
-	"No-Reference Color Image Grading (options to our taste)",
-	"Change the Color of Individual Elements",
+	"RAW Processing",
+	"Color Matching to Reference",
+	"Creative Color Grading (without a reference)",
+	"Individual Object Color Changes",
 	"Contrast Enhancement",
-	"Working with Light Accents: Highlighting the Main Object by Brightness Adjusting",
+	"Light & Shadow Adjustments (enhancing the main subject)",
 }
 
 var fashionBackground = []string{
-	"Dust, Stain, and Scratch Removal",
-	"Clipping mask",
+	"Dust, Stain & Scratch Removal",
+	"Clipping Path / Precise Object Masking",
 	"Background Replacement",
 }
 
 var productBackground = []string{
-	"Dust, Spot, and Scratch Removal",
-	"Clipping mask",
+	"Dust, Stain & Scratch Removal",
+	"Clipping Path / Precise Object Masking",
 	"Background Replacement",
 	"Create a mirror image effect",
 	"Subject Shadow Addition",
 }
 
 var fashionModel = []string{
-	"Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)",
-	"Makeup Correction",
-	"Manicure Adjustment",
-	"Hair Retouching: (Stray Hair Cleanup, Fill Hair Gaps)",
+	"Facial Feature Refinement (eyes, eyebrows, nose, lips and teeth)",
+	"Makeup Refinement",
+	"Nail & Manicure Corrections",
+	"Hair Retouching (flyaway removal and hair volume enhancement)",
 }
 
 var beautyModel = []string{
-	"Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)",
-	"Makeup Correction",
-	"Manicure Adjustment",
-	"Hair Retouching: (Stray Hair Cleanup, Fill Hair Gaps)",
+	"Facial Feature Refinement (eyes, eyebrows, nose, lips and teeth)",
+	"Makeup Refinement",
+	"Nail & Manicure Corrections",
+	"Hair Retouching (flyaway removal and hair volume enhancement)",
 	"Detailed Lip Retouching",
 	"Cosmetic Product Retouching in Frame (Lipstick, Powder, Perfume, etc.)",
 	"Clothing Retouching (Wrinkle Softening, Shape Correction)",
 }
 
 var fashionClothing = []string{
-	"General Cleaning (Pilling, Dust, Threads)",
-	"Wrinkle/Crease Smoothing",
-	"Shape Correction",
-	"Fix Clothing, Move Clothing (closer to the body)",
-	"Clothing Part Replacement from Additional Shots/Plates",
+	"Garment Cleanup (removing lint, dust and loose threads)",
+	"Wrinkle & Crease Reduction",
+	"Garment Shape Refinement",
+	"Clothing Fit Adjustments",
+	"Clothing Replacement Using Additional Images or Plates",
 }
 
 var fashionFootwear = []string{
-	"General Cleaning (Dust, Scratches)",
-	"Tape Removal from Shoe Sole",
-	"Shoe Resizing to Models Foot Size",
+	"Shoe Cleanup (removing dust, marks and scratches)",
+	"Sole Tape Removal",
+	"Shoe Resizing to Match the Model's Foot Proportions",
 }
 
 var productObjectwork = []string{
@@ -131,10 +131,10 @@ var formatCut = []string{"PNG", "JPG", "TIFF", "TIFF/with layers", "PSD", "PSD/w
 var profileOpts = []string{"Adobe RGB (1998)", "sRGB Profile", "ProPhoto RGB", "e-sRGB", "Other / Specify in the brief"}
 var retouchLevels = []string{"1", "2", "3", "4"}
 var retouchLevelLabels = map[string]string{
-	"1": "Light skin retouching that doesn't affect the shadow and age changes to leave your photo as natural as possible",
-	"2": "Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics",
-	"3": "Focus is on the skin retouching: removing all imperfections, smoothing wrinkles, yet saving natural texture",
-	"4": "Retouching of blemishes, scars, improving texture, removing of unwanted wrinkles, adjusting highlights and features",
+	"1": "LIGHT RETOUCHING — Subtle skin refinements while preserving the original texture, natural shadows, and individual features.",
+	"2": "NATURAL RETOUCHING — Removal of visible imperfections while maintaining the model's natural appearance, skin texture, and unique characteristics.",
+	"3": "DETAILED RETOUCHING — More extensive skin refinement, including blemish removal, texture smoothing, and wrinkle reduction while retaining realistic skin detail.",
+	"4": "ADVANCED RETOUCHING — Comprehensive image refinement, including skin corrections, scar removal, texture enhancement, wrinkle cleanup, and precise highlight and shadow adjustments.",
 }
 var contactMethods = []string{"Phone", "Email", "WhatsApp"}
 var manualTasks = []string{"cut_model", "cut_object", "color", "hair"}

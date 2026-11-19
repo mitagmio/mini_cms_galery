@@ -58,6 +58,14 @@ func renderFormField(f cms.FormField, m RateModal) string {
 	switch f.Type {
 	case cms.BlockFormHoneypot:
 		return ""
+	case cms.BlockFormWrapOpen:
+		cls := strings.TrimSpace(mapString(f.Data, "class"))
+		if cls == "" {
+			cls = "rate-form-wrap"
+		}
+		return fmt.Sprintf(`<div class="%s">`+"\n", template.HTMLEscapeString(cls))
+	case cms.BlockFormWrapClose:
+		return "</div>\n"
 	case cms.BlockFormStep:
 		title := strings.TrimSpace(mapString(f.Data, "title"))
 		if title == "" {

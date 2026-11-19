@@ -23,7 +23,7 @@ func DefaultFormFieldTypes() []string {
 	return []string{
 		BlockFormStep, BlockFormText, BlockFormNumber, BlockFormDate, BlockFormTextarea,
 		BlockFormSelect, BlockFormRadio, BlockFormCheckbox, BlockFormRetouch,
-		BlockFormHelp, BlockFormFooter, BlockFormHoneypot,
+		BlockFormHelp, BlockFormFooter, BlockFormHoneypot, BlockFormWrapOpen, BlockFormWrapClose,
 	}
 }
 
@@ -242,7 +242,7 @@ func (f FormField) OptionValues() []string {
 
 func (f FormField) IsInput() bool {
 	switch f.Type {
-	case BlockFormStep, BlockFormHelp, BlockFormHoneypot:
+	case BlockFormStep, BlockFormHelp, BlockFormHoneypot, BlockFormWrapOpen, BlockFormWrapClose:
 		return false
 	default:
 		return true
@@ -292,13 +292,13 @@ func SchemaHasInput(fields []FormField) bool {
 func DefaultRetouchPlaque(value string) string {
 	switch strings.TrimSpace(value) {
 	case "1":
-		return "LIGHT / RAW"
+		return "LIGHT RETOUCHING"
 	case "2":
-		return "NATURAL"
+		return "NATURAL RETOUCHING"
 	case "3":
-		return "CLEAN UP"
+		return "DETAILED RETOUCHING"
 	case "4":
-		return "FULL TOUCH UP"
+		return "ADVANCED RETOUCHING"
 	default:
 		return ""
 	}
@@ -314,10 +314,10 @@ func DefaultRetouchImage(value string) string {
 
 func DefaultRetouchOptions() []FormOption {
 	return []FormOption{
-		{Value: "1", Image: DefaultRetouchImage("1"), Plaque: DefaultRetouchPlaque("1"), Label: "Light skin retouching that doesn't affect the shadow and age changes to leave your photo as natural as possible"},
-		{Value: "2", Image: DefaultRetouchImage("2"), Plaque: DefaultRetouchPlaque("2"), Label: "Removing obvious blemishes, but keeping the model looking natural with all the personal characteristics"},
-		{Value: "3", Image: DefaultRetouchImage("3"), Plaque: DefaultRetouchPlaque("3"), Label: "Focus is on the skin retouching: removing all imperfections, smoothing wrinkles, yet saving natural texture"},
-		{Value: "4", Image: DefaultRetouchImage("4"), Plaque: DefaultRetouchPlaque("4"), Label: "Retouching of blemishes, scars, improving texture, removing of unwanted wrinkles, adjusting highlights and features"},
+		{Value: "1", Image: DefaultRetouchImage("1"), Plaque: DefaultRetouchPlaque("1"), Label: "LIGHT RETOUCHING — Subtle skin refinements while preserving the original texture, natural shadows, and individual features."},
+		{Value: "2", Image: DefaultRetouchImage("2"), Plaque: DefaultRetouchPlaque("2"), Label: "NATURAL RETOUCHING — Removal of visible imperfections while maintaining the model's natural appearance, skin texture, and unique characteristics."},
+		{Value: "3", Image: DefaultRetouchImage("3"), Plaque: DefaultRetouchPlaque("3"), Label: "DETAILED RETOUCHING — More extensive skin refinement, including blemish removal, texture smoothing, and wrinkle reduction while retaining realistic skin detail."},
+		{Value: "4", Image: DefaultRetouchImage("4"), Plaque: DefaultRetouchPlaque("4"), Label: "ADVANCED RETOUCHING — Comprehensive image refinement, including skin corrections, scar removal, texture enhancement, wrinkle cleanup, and precise highlight and shadow adjustments."},
 	}
 }
 
@@ -398,6 +398,7 @@ func step1Core(withRetouch bool) []map[string]any {
 			"placeholder": "Paste the link here", "required": true,
 			"help": "Share a link to your images (Google Drive, Dropbox, or another file-sharing service).",
 		}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-form-row"}),
 		blk(BlockFormNumber, map[string]any{
 			"name": "Total", "label": "Total Number of Images", "required": true, "min": 1,
 			"placeholder": "e.g. 30",
@@ -407,6 +408,7 @@ func step1Core(withRetouch bool) []map[string]any {
 			"placeholder": "YYYY-MM-DD",
 			"help":        "Type YYYY-MM-DD or use the English calendar. Past dates are not allowed.",
 		}),
+		blk(BlockFormWrapClose, map[string]any{}),
 	}
 	if withRetouch {
 		out = append(out, blk(BlockFormRetouch, map[string]any{
@@ -426,6 +428,7 @@ func step2Format() []map[string]any {
 			"placeholder": "Paste the link here",
 			"help":        "Provide a link to your preferred color reference (optional).",
 		}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-form-row"}),
 		blk(BlockFormSelect, map[string]any{
 			"name": "Format", "label": "Image Format", "required": true,
 			"placeholder": "Select format", "options": formatStdOpts(),
@@ -434,6 +437,7 @@ func step2Format() []map[string]any {
 			"name": "Profile", "label": "Color Profile", "required": true,
 			"placeholder": "Select color profile", "options": profileOptsSeed(),
 		}),
+		blk(BlockFormWrapClose, map[string]any{}),
 		blk(BlockFormHelp, map[string]any{
 			"text": "Please specify the technical requirements for your final image delivery.",
 		}),
@@ -458,52 +462,62 @@ func fashionFormBlocks() []map[string]any {
 	out = append(out, step2Format()...)
 	out = append(out,
 		blk(BlockFormStep, map[string]any{"title": "STEP 3", "heading": "Retouching Requirements"}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs"}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs-col"}),
 		blk(BlockFormCheckbox, map[string]any{
 			"name": "colorwork", "label": "Color & Tone Adjustments",
 			"options": strOpts(
-				"Basic RAW Development (Camera RAW or Capture One)",
-				"Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)",
-				"Skin Tone Balancing (for example, reduce redness in hands/fingers)",
-				"Even Out Body Exposure (for example, when the neck and chest area lighter in relation to the face)",
-				"Brightening Eye Whites and Teeth",
-				"Color Correction by Reference",
-				"No-Reference Color Image Grading (options to our taste)",
-				"Selective Color Adjustment",
-				"Changing the color on individual elements",
-				"Working with Light Accents: Highlighting the Main Object by Brightness Adjusting",
-			),
-		}),
-		blk(BlockFormCheckbox, map[string]any{
-			"name": "background", "label": "Background Retouching",
-			"options": strOpts("Dust, Stain, and Scratch Removal", "Clipping mask", "Background Replacement"),
-		}),
-		blk(BlockFormCheckbox, map[string]any{
-			"name": "model", "label": "Model Retouching",
-			"options": strOpts(
-				"Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)",
-				"Makeup Correction",
-				"Manicure Adjustment",
-				"Hair Retouching: (Stray Hair Cleanup, Fill Hair Gaps)",
+				"RAW Processing (Camera Raw / Capture One)",
+				"Color Cast Removal (neutralizing unwanted color shifts)",
+				"Skin Tone Refinement (balancing uneven skin tones and redness)",
+				"Body Exposure Correction (balancing light across the body)",
+				"Eye & Teeth Brightening",
+				"Color Matching to Reference",
+				"Creative Color Grading (without a reference)",
+				"Selective Color Adjustments",
+				"Individual Object Color Changes",
+				"Light & Shadow Adjustments (enhancing the main subject)",
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
 			"name": "clothing", "label": "Clothing Retouching",
 			"options": strOpts(
-				"General Cleaning (Pilling, Dust, Threads)",
-				"Wrinkle/Crease Smoothing",
-				"Shape Correction",
-				"Fix Clothing, Move Clothing (closer to the body)",
-				"Clothing Part Replacement from Additional Shots/Plates",
+				"Garment Cleanup (removing lint, dust and loose threads)",
+				"Wrinkle & Crease Reduction",
+				"Garment Shape Refinement",
+				"Clothing Fit Adjustments",
+				"Clothing Replacement Using Additional Images or Plates",
+			),
+		}),
+		blk(BlockFormWrapClose, map[string]any{}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs-col"}),
+		blk(BlockFormCheckbox, map[string]any{
+			"name": "background", "label": "Background Retouching",
+			"options": strOpts(
+				"Dust, Stain & Scratch Removal",
+				"Clipping Path / Precise Object Masking",
+				"Background Replacement",
+			),
+		}),
+		blk(BlockFormCheckbox, map[string]any{
+			"name": "model", "label": "Model Retouching",
+			"options": strOpts(
+				"Facial Feature Refinement (eyes, eyebrows, nose, lips and teeth)",
+				"Makeup Refinement",
+				"Nail & Manicure Corrections",
+				"Hair Retouching (flyaway removal and hair volume enhancement)",
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
 			"name": "footwear", "label": "Footwear Retouching",
 			"options": strOpts(
-				"General Cleaning (Dust, Scratches)",
-				"Tape Removal from Shoe Sole",
-				"Shoe Resizing to Models Foot Size",
+				"Shoe Cleanup (removing dust, marks and scratches)",
+				"Sole Tape Removal",
+				"Shoe Resizing to Match the Model's Foot Proportions",
 			),
 		}),
+		blk(BlockFormWrapClose, map[string]any{}),
+		blk(BlockFormWrapClose, map[string]any{}),
 		blk(BlockFormStep, map[string]any{"title": "STEP 4"}),
 	)
 	out = append(out, briefAndChrome()...)
@@ -516,37 +530,47 @@ func beautyFormBlocks() []map[string]any {
 	out = append(out, step2Format()...)
 	out = append(out,
 		blk(BlockFormStep, map[string]any{"title": "STEP 3", "heading": "Retouching Requirements"}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs"}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs-col"}),
 		blk(BlockFormCheckbox, map[string]any{
 			"name": "colorwork", "label": "Color & Tone Adjustments",
 			"options": strOpts(
-				"Basic RAW Development (Camera RAW or Capture One)",
-				"Removing Unwanted Color Casts (on the whites of the eyes, on the teeth)",
-				"Skin Tone Balancing (for example, reduce redness in hands/fingers)",
-				"Even Out Body Exposure (for example, when the neck and chest area lighter in relation to the face)",
-				"Brightening Eye Whites and Teeth",
-				"Color Correction by Reference",
-				"No-Reference Color Image Grading (options to our taste)",
-				"Changing the color on individual elements (for example, makeup/nail/lipstick colors)",
+				"RAW Processing (Camera Raw / Capture One)",
+				"Color Cast Removal (neutralizing unwanted color shifts)",
+				"Skin Tone Refinement (balancing uneven skin tones and redness)",
+				"Body Exposure Correction (balancing light across the body)",
+				"Eye & Teeth Brightening",
+				"Color Matching to Reference",
+				"Creative Color Grading (without a reference)",
+				"Individual Object Color Changes (for example, makeup/nail/lipstick colors)",
 				"Contrast Enhancement",
-				"Working with Light Accents: Highlighting the Main Object by Brightness Adjusting",
+				"Light & Shadow Adjustments (enhancing the main subject)",
 			),
 		}),
+		blk(BlockFormWrapClose, map[string]any{}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs-col"}),
 		blk(BlockFormCheckbox, map[string]any{
 			"name": "background", "label": "Background Retouching",
-			"options": strOpts("Dust, Stain, and Scratch Removal", "Clipping mask", "Background Replacement"),
+			"options": strOpts(
+				"Dust, Stain & Scratch Removal",
+				"Clipping Path / Precise Object Masking",
+				"Background Replacement",
+			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{
 			"name": "model", "label": "Model Retouching",
 			"options": strOpts(
-				"Adjust and Change Facial Features (Eyes, Brows, Nose, Lips, Teeth Shape Correction)",
-				"Makeup Correction",
-				"Manicure Adjustment",
-				"Hair Retouching: (Stray Hair Cleanup, Fill Hair Gaps)",
+				"Facial Feature Refinement (eyes, eyebrows, nose, lips and teeth)",
+				"Makeup Refinement",
+				"Nail & Manicure Corrections",
+				"Hair Retouching (flyaway removal and hair volume enhancement)",
 				"Detailed Lip Retouching",
 				"Cosmetic Product Retouching in Frame (Lipstick, Powder, Perfume, etc.)",
 				"Clothing Retouching (Wrinkle Softening, Shape Correction)",
 			),
 		}),
+		blk(BlockFormWrapClose, map[string]any{}),
+		blk(BlockFormWrapClose, map[string]any{}),
 		blk(BlockFormStep, map[string]any{"title": "STEP 4"}),
 	)
 	out = append(out, briefAndChrome()...)
@@ -559,21 +583,25 @@ func productFormBlocks() []map[string]any {
 	out = append(out, step2Format()...)
 	out = append(out,
 		blk(BlockFormStep, map[string]any{"title": "STEP 3", "heading": "Retouching Requirements"}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs"}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs-col"}),
 		blk(BlockFormCheckbox, map[string]any{
 			"name": "colorwork", "label": "Color & Tone Adjustments",
 			"options": strOpts(
-				"Basic RAW Development",
-				"Changing the color on individual elements",
-				"Color Correction by Reference",
-				"No-Reference Color Image Grading (options to our taste)",
+				"RAW Processing",
+				"Individual Object Color Changes",
+				"Color Matching to Reference",
+				"Creative Color Grading (without a reference)",
 				"Contrast Enhancement",
 			),
 		}),
+		blk(BlockFormWrapClose, map[string]any{}),
+		blk(BlockFormWrapOpen, map[string]any{"class": "rate-reqs-col"}),
 		blk(BlockFormCheckbox, map[string]any{
 			"name": "background", "label": "Background Retouching",
 			"options": strOpts(
-				"Dust, Spot, and Scratch Removal",
-				"Clipping mask",
+				"Dust, Stain & Scratch Removal",
+				"Clipping Path / Precise Object Masking",
 				"Background Replacement",
 				"Create a mirror image effect",
 				"Subject Shadow Addition",
@@ -596,6 +624,8 @@ func productFormBlocks() []map[string]any {
 				"Image Compositing, Object Addition and Replacement",
 			),
 		}),
+		blk(BlockFormWrapClose, map[string]any{}),
+		blk(BlockFormWrapClose, map[string]any{}),
 		blk(BlockFormStep, map[string]any{"title": "STEP 4"}),
 	)
 	out = append(out, briefAndChrome()...)
@@ -665,12 +695,12 @@ func manualFormBlocks() []map[string]any {
 			"name": "colorwork", "label": "Color & Tone Adjustments",
 			"show_if": "task=color", "hidden": true,
 			"options": strOpts(
-				"Basic RAW Development",
-				"Color Correction by Reference",
-				"No-Reference Color Image Grading (options to our taste)",
-				"Change the Color of Individual Elements",
+				"RAW Processing",
+				"Color Matching to Reference",
+				"Creative Color Grading (without a reference)",
+				"Individual Object Color Changes",
 				"Contrast Enhancement",
-				"Working with Light Accents: Highlighting the Main Object by Brightness Adjusting",
+				"Light & Shadow Adjustments (enhancing the main subject)",
 			),
 		}),
 		blk(BlockFormCheckbox, map[string]any{

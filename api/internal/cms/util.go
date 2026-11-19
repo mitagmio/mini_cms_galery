@@ -82,7 +82,7 @@ func ValidFormBlockType(t string) bool {
 	switch t {
 	case BlockFormStep, BlockFormText, BlockFormNumber, BlockFormDate, BlockFormTextarea,
 		BlockFormSelect, BlockFormRadio, BlockFormCheckbox, BlockFormRetouch,
-		BlockFormHelp, BlockFormFooter, BlockFormHoneypot:
+		BlockFormHelp, BlockFormFooter, BlockFormHoneypot, BlockFormWrapOpen, BlockFormWrapClose:
 		return true
 	default:
 		return false

@@ -28,10 +28,12 @@ const (
 	BlockFormSelect   = "form_select"
 	BlockFormRadio    = "form_radio"
 	BlockFormCheckbox = "form_checkbox"
-	BlockFormRetouch  = "form_retouch_level"
-	BlockFormHelp     = "form_help"
-	BlockFormFooter   = "form_contact_footer"
-	BlockFormHoneypot = "form_honeypot"
+	BlockFormRetouch   = "form_retouch_level"
+	BlockFormHelp      = "form_help"
+	BlockFormFooter    = "form_contact_footer"
+	BlockFormHoneypot  = "form_honeypot"
+	BlockFormWrapOpen  = "form_wrap_open"
+	BlockFormWrapClose = "form_wrap_close"
 )
 
 const (
