@@ -317,26 +317,21 @@ func (s *Service) runPublishJob(jobID, note string) {
 }
 
 // PushFrontRepo commits the already-generated FRONT_DIR tree in place and pushes
-// to GitHub over SSH (git@github.com). Deploy key path: GHP_SSH_KEY_PATH
-// (default /data/ghp-ssh/id_ed25519). HTTPS GH_TOKEN is not used.
+// to GitHub via HTTPS + GH_TOKEN / GITHUB_TOKEN (PAT).
 func PushFrontRepo(frontDir, note string) (status string, detail map[string]any) {
 	repo := firstEnv("GITHUB_REPO", "GHP_REPO")
 	branch := firstEnv("GITHUB_BRANCH", "GHP_BRANCH")
 	if branch == "" {
 		branch = "main"
 	}
-	keyPath := firstEnv("GHP_SSH_KEY_PATH")
-	if keyPath == "" {
-		keyPath = "/data/ghp-ssh/id_ed25519"
-	}
+	token := firstEnv("GITHUB_TOKEN", "GH_TOKEN")
 
 	detail = map[string]any{
 		"repo":   repo,
 		"branch": branch,
 		"source": frontDir,
 		"mode":   "in-place",
-		"auth":   "ssh",
-		"sshKey": keyPath,
+		"auth":   "https-token",
 	}
 
 	if frontDir == "" {
@@ -352,30 +347,18 @@ func PushFrontRepo(frontDir, note string) (status string, detail map[string]any)
 		detail["message"] = "git push stubbed — repo unset"
 		return "stub", detail
 	}
-	if _, err := os.Stat(keyPath); err != nil {
-		detail["todo"] = "Mount deploy key at GHP_SSH_KEY_PATH (default /data/ghp-ssh/id_ed25519)"
-		detail["message"] = "git push stubbed — SSH key missing"
-		detail["error"] = "SSH key not found: " + keyPath
-		log.Printf("publish: git push stubbed (SSH key missing at %s)", keyPath)
+	if token == "" {
+		detail["todo"] = "Set GH_TOKEN (or GITHUB_TOKEN)"
+		detail["message"] = "git push stubbed — token unset"
+		log.Printf("publish: git push stubbed (GH_TOKEN unset)")
 		return "stub", detail
 	}
 
 	env := append([]string{}, os.Environ()...)
 	env = append(env, "GIT_TERMINAL_PROMPT=0")
-	knownHosts := filepath.Join(filepath.Dir(keyPath), "known_hosts")
-	sshCmd := fmt.Sprintf(
-		"ssh -i %s -o IdentitiesOnly=yes -o IdentityAgent=none -o StrictHostKeyChecking=accept-new",
-		keyPath,
-	)
-	if _, err := os.Stat(knownHosts); err == nil {
-		sshCmd = fmt.Sprintf(
-			"ssh -i %s -o IdentitiesOnly=yes -o IdentityAgent=none -o UserKnownHostsFile=%s -o StrictHostKeyChecking=yes",
-			keyPath, knownHosts,
-		)
-	}
-	env = append(env, "GIT_SSH_COMMAND="+sshCmd)
 
-	remote := fmt.Sprintf("git@github.com:%s.git", repo)
+	// Embed PAT in origin URL for fetch/push (local repo only; not committed).
+	remote := fmt.Sprintf("https://x-access-token:%s@github.com/%s.git", token, repo)
 
 	_ = runCmdEnv(env, "git", "-C", frontDir, "config", "user.email", "cms@sheyanova.art")
 	_ = runCmdEnv(env, "git", "-C", frontDir, "config", "user.name", "Sheyanova CMS")
@@ -398,6 +381,8 @@ func PushFrontRepo(frontDir, note string) (status string, detail map[string]any)
 	if err := runCmdEnv(env, "git", "-C", frontDir, "pull", "--rebase", "origin", branch); err != nil {
 		detail["error"] = "git pull --rebase failed: " + err.Error()
 		_ = runCmdEnv(env, "git", "-C", frontDir, "rebase", "--abort")
+		// Best-effort: strip token from origin even on failure.
+		_ = runCmdEnv(env, "git", "-C", frontDir, "remote", "set-url", "origin", fmt.Sprintf("git@github.com:%s.git", repo))
 		return "error", detail
 	}
 
@@ -406,8 +391,12 @@ func PushFrontRepo(frontDir, note string) (status string, detail map[string]any)
 
 	if err := runCmdEnv(env, "git", "-C", frontDir, "push", "origin", branch); err != nil {
 		detail["error"] = err.Error()
+		_ = runCmdEnv(env, "git", "-C", frontDir, "remote", "set-url", "origin", fmt.Sprintf("git@github.com:%s.git", repo))
 		return "error", detail
 	}
+
+	// Restore SSH remote for host/interactive use (don't leave PAT in .git/config).
+	_ = runCmdEnv(env, "git", "-C", frontDir, "remote", "set-url", "origin", fmt.Sprintf("git@github.com:%s.git", repo))
 
 	detail["message"] = "pushed"
 	return "ok", detail

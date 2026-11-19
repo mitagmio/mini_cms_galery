@@ -57,9 +57,9 @@ nginx-app/      # nginx for api.sheyanova.art (/api /media /admin /preview)
 | `CANONICAL_BASE` | Canonical public URL (`https://www.sheyanova.art`) |
 | `GITHUB_REPO` | `owner/repo` for Pages |
 | `GITHUB_BRANCH` | Branch GitHub Pages builds from (e.g. `gh-pages`) |
-| `GHP_SSH_KEY_PATH` | Deploy key inside container (default `/data/ghp-ssh/id_ed25519`) |
+| `GH_TOKEN` | GitHub PAT for HTTPS push to `GITHUB_REPO` |
 
-Compose mounts: `./front` → `/front`, `api-preview` → `/data/preview`, deploy key → `/data/ghp-ssh/`. Publish always pushes over **SSH** (`git@github.com`).
+Compose mounts: `./front` → `/front`, `api-preview` → `/data/preview`. Publish pushes over **HTTPS** with `GH_TOKEN`.
 
 ## Phase 1 flow
 
@@ -73,7 +73,7 @@ Compose mounts: `./front` → `/front`, `api-preview` → `/data/preview`, deplo
 ```bash
 docker network ls | grep shared-web
 
-nano .envs/.env.api    # ADMIN_TOKEN, GITHUB_*, GHP_SSH_KEY_PATH
+nano .envs/.env.api    # ADMIN_TOKEN, GITHUB_*, GH_TOKEN
 nano .envs/.env.web    # LETSENCRYPT_EMAIL (api only)
 
 docker compose up -d --build
